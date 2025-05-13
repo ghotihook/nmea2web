@@ -62,7 +62,7 @@ html = f"""<!DOCTYPE html>
       padding: 6px; color: #0f0; user-select: none;
     }}
     .top-line {{
-      font-size: 2.5vw;
+      font-size: 5vw;
       text-align: center;
       margin: 4px 0;
       line-height: 1;
