@@ -150,10 +150,14 @@ async def udp_listener():
 
             if isinstance(msg, pynmea2.types.talker.VHW):
                 broadcast("a", CELLS["a"]["format"] % msg.water_speed_knots)
-                broadcast("c", CELLS["c"]["format"] % msg.heading_true)
 
-            elif isinstance(msg, pynmea2.types.talker.VTG):
-                broadcast("b", CELLS["b"]["format"] % msg.mag_track)
+            elif isinstance(msg, pynmea2.types.talker.MWV):
+                if msg.reference == "T":
+                    angle_180 = (float(msg.wind_angle) + 180) % 360 - 180
+                    broadcast("b", CELLS["b"]["format"] % angle_180)
+
+            elif isinstance(msg, pynmea2.types.talker.HDG):
+                broadcast("c", CELLS["c"]["format"] % msg.heading)
 
             # add more cases if needed...
 
