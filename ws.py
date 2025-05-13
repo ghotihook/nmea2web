@@ -1,8 +1,8 @@
-#V3
-
 import asyncio
 import logging
 import socket
+import time
+import math
 
 import pynmea2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -12,20 +12,41 @@ from fastapi.responses import HTMLResponse
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # ── 1) Cell definitions ─────────────────────────────────────────────────────
-# Exactly four cells in a single column
 CELLS = {
-    "a": {"top": "BSP (kt)",     "format": "%0.1f"},
-    "b": {"top": "TWA",          "format": "%0.0f°"},
-    "c": {"top": "HDG (mag)",    "format": "%0.0f°"},
+    "a": {"top": "BSP (kt)",    "format": "%0.1f"},
+    "b": {"top": "Target (kt)", "format": "%0.1f"},
+    "c": {"top": "TWA",         "format": "%0.0f°"},
+    "d": {"top": "HDG (mag)",   "format": "%0.0f°"},
 }
 
-# ── 2) Appearance constants ─────────────────────────────────────────────────
+# ── 2) EMA configuration ────────────────────────────────────────────────────
+EMA_WINDOW = 5.0  # seconds time constant for smoothing
+
+# Initialize EMA state and last‐update timestamps
+ema_values = { key: 0.0 for key in CELLS }
+last_ts    = { key: None for key in CELLS }
+
+def update_ema(key: str, value: float):
+    """Update the EMA for `key` given a new raw `value`."""
+    now = time.time()
+    prev = last_ts[key]
+    if prev is None:
+        # first sample → set EMA to the sample
+        ema_values[key] = value
+    else:
+        dt = now - prev
+        # α = 1 – exp(–dt/τ)
+        alpha = 1 - math.exp(-dt / EMA_WINDOW)
+        ema_values[key] = ema_values[key] + alpha * (value - ema_values[key])
+    last_ts[key] = now
+
+# ── 3) Appearance constants ─────────────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12  # px
 CELL_RADIUS = 8   # px
 
-# ── 3) Build the HTML page ────────────────────────────────────────────────
+# ── 4) Build the HTML page ────────────────────────────────────────────────
 cells_html = ""
 for key, cfg in CELLS.items():
     placeholder = cfg["format"] % 0
@@ -40,7 +61,7 @@ html = f"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Live Single-Column Dashboard</title>
+  <title>Live Single-Column Dashboard (EMA)</title>
   <style>
     * {{ box-sizing: border-box; }}
     html, body {{
@@ -64,19 +85,14 @@ html = f"""<!DOCTYPE html>
       padding: 6px; color: #0f0; user-select: none;
     }}
     .top-line {{
-      font-size: 5vw;
-      text-align: center;
-      margin: 4px 0;
-      line-height: 1;
+      font-size: 2.5vw; text-align: center;
+      margin: 4px 0; line-height: 1;
     }}
     .middle-line {{
-      font-size: 20vh;       /* as large as practical */
-      max-height: 100%;
-      text-align: center;
-      line-height: 1;
+      font-size: 15vh; max-height: 100%;
+      text-align: center; line-height: 1;
       font-variant-numeric: tabular-nums;
-      font-feature-settings: 'tnum';
-      font-weight: bold;
+      font-feature-settings: 'tnum'; font-weight: bold;
     }}
   </style>
 </head>
@@ -102,12 +118,9 @@ html = f"""<!DOCTYPE html>
       }});
       ws.addEventListener('close', () => {{
         console.log("✖ WS disconnected, retrying in 1s");
-        setTimeout(connect, 1000);
+        setTimeout(connect,1000);
       }});
-      ws.addEventListener('error', err => {{
-        console.warn("WS error:", err);
-        ws.close();
-      }});
+      ws.addEventListener('error', err => {{ console.warn("WS error:", err); ws.close(); }});
     }}
     connect();
   }})();
@@ -115,7 +128,7 @@ html = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-# ── 4) FastAPI & WebSocket setup ───────────────────────────────────────────
+# ── 5) FastAPI & WebSocket setup ───────────────────────────────────────────
 app = FastAPI()
 clients: list[WebSocket] = []
 
@@ -138,9 +151,10 @@ async def ws_endpoint(ws: WebSocket):
 async def get_page():
     return HTMLResponse(html)
 
-# ── 5) UDP listener with simple if/elif routing ───────────────────────────
+# ── 6) UDP listener with simple routing & EMA update ───────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
+
     class Proto(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
@@ -150,18 +164,34 @@ async def udp_listener():
             except pynmea2.ParseError:
                 return
 
+            # Example mapping & smoothing:
             if isinstance(msg, pynmea2.types.talker.VHW):
-                broadcast("a", CELLS["a"]["format"] % msg.water_speed_knots)
+                # BSP → 'a'
+                bsp = float(msg.water_speed_knots)
+                update_ema("a", bsp)
+                val = ema_values["a"]
+                broadcast("a", CELLS["a"]["format"] % val)
+                # reuse bsp for 'b'
+                update_ema("b", bsp)
+                val = ema_values["b"]
+                broadcast("b", CELLS["b"]["format"] % val)
+                # heading → 'd'
+                hdg = float(msg.heading_true)
+                update_ema("d", hdg)
+                val = ema_values["d"]
+                broadcast("d", CELLS["d"]["format"] % val)
 
-            elif isinstance(msg, pynmea2.types.talker.MWV):
-                if msg.reference == "T":
-                    angle_180 = (float(msg.wind_angle) + 180) % 360 - 180
-                    broadcast("b", CELLS["b"]["format"] % angle_180)
+            elif isinstance(msg, pynmea2.types.talker.VTG):
+                sog = float(msg.spd_over_grnd_kts)
+                update_ema("c", sog)
+                val = ema_values["c"]
+                broadcast("c", CELLS["c"]["format"] % val)
+                cog = float(msg.mag_track)
+                update_ema("d", cog)
+                val = ema_values["d"]
+                broadcast("d", CELLS["d"]["format"] % val)
 
-            elif isinstance(msg, pynmea2.types.talker.HDG):
-                broadcast("c", CELLS["c"]["format"] % msg.heading)
-
-            # add more cases if needed...
+            # extend with more cases as needed...
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
