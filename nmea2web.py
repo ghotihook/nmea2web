@@ -110,6 +110,8 @@ for key in SHOW_KEYS:
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#141f30">
   <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live EMA Dashboard</title>
   <style>
