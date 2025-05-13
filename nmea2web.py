@@ -4,6 +4,7 @@ import logging
 import socket
 import time
 import math
+import sys
 
 import pynmea2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -11,36 +12,20 @@ from fastapi.responses import HTMLResponse
 
 # ── 0) Parse command-line arguments ─────────────────────────────────────────
 parser = argparse.ArgumentParser(description="Live NMEA EMA Dashboard")
-parser.add_argument(
-    "--udp-port", type=int, default=2002,
-    help="UDP port to listen for NMEA sentences (default: 2002)",
-)
-parser.add_argument(
-    "--web-port", type=int, default=8000,
-    help="HTTP/WebSocket server port (default: 8000)",
-)
-parser.add_argument(
-    "--log-level",
-    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-    default="ERROR",
-    help="Logging level (default: ERROR)",
-)
-parser.add_argument(
-    "--display-data", nargs="+", metavar="KEY",
-    default=["BSP", "TWA", "HDG"],
-    help="Which CELLS keys to display (default: BSP TWA HDG)",
-)
+parser.add_argument("--udp-port", type=int, default=2002,
+                    help="UDP port to listen for NMEA sentences (default: 2002)")
+parser.add_argument("--web-port", type=int, default=8000,
+                    help="HTTP/WebSocket server port (default: 8000)")
+parser.add_argument("--log-level",
+                    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                    default="ERROR",
+                    help="Logging level (default: ERROR)")
+parser.add_argument("--display-data", nargs="+", metavar="KEY",
+                    default=["BSP", "TWA", "HDG"],
+                    help="Which CELLS keys to display (default: BSP TWA HDG)")
 args = parser.parse_args()
 
-# ── 1) Logging ──────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=getattr(logging, args.log_level),
-    format="%(asctime)s %(levelname)s: %(message)s",
-)
-
-# ── 2) Cell definitions & EMA state ─────────────────────────────────────────
-EMA_WINDOW = 1.0  # seconds time-constant for EMA
-
+# ── Validate display-data keys ───────────────────────────────────────────────
 CELLS = {
     "BSP": {"top":"BSP (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
     "TWA": {"top":"TWA",         "format":"%0.0f°","ema":0.0, "last_ts":None},
@@ -53,8 +38,24 @@ CELLS = {
     "TWD": {"top":"TWD",         "format":"%0.0f°","ema":0.0, "last_ts":None},
 }
 
+invalid = [k for k in args.display_data if k not in CELLS]
+if invalid:
+    print(f"Error: invalid --display-data key(s): {', '.join(invalid)}", file=sys.stderr)
+    print(f"Valid keys are: {', '.join(CELLS.keys())}", file=sys.stderr)
+    sys.exit(1)
+
+SHOW_KEYS = args.display_data
+
+# ── 1) Logging ──────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=getattr(logging, args.log_level),
+    format="%(asctime)s %(levelname)s: %(message)s",
+)
+
+# ── 2) EMA config & state ───────────────────────────────────────────────────
+EMA_WINDOW = 1.0  # seconds time-constant for EMA
+
 def update_ema_and_state(key: str, raw_value: float):
-    """Update the EMA for `key` in CELLS."""
     now = time.time()
     cell = CELLS[key]
     prev = cell["last_ts"]
@@ -72,20 +73,17 @@ app = FastAPI()
 clients: list[WebSocket] = []
 
 def broadcast(key: str):
-    """Send CELLS[key]['ema'] formatted to all WebSocket clients."""
     cell = CELLS[key]
     text = cell["format"] % cell["ema"]
     payload = f"{key}:{text}"
     for ws in clients.copy():
         asyncio.create_task(ws.send_text(payload))
 
-# ── 4) Which cells to display ───────────────────────────────────────────────
-SHOW_KEYS = args.display_data
-
+# ── 4) Build HTML (only SHOW_KEYS) ─────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
-CELL_GAP    = 12  # px
-CELL_RADIUS = 8   # px
+CELL_GAP    = 12
+CELL_RADIUS = 8
 
 cells_html = ""
 for key in SHOW_KEYS:
@@ -100,15 +98,12 @@ for key in SHOW_KEYS:
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live EMA Dashboard</title>
   <style>
     * {{ box-sizing: border-box; }}
-    html,body {{
-      margin:0; width:100vw; height:100vh; overflow:hidden;
-      background:{PAGE_BG}; font-family:system-ui,sans-serif;
-    }}
+    html,body {{ margin:0; width:100vw; height:100vh; overflow:hidden;
+      background:{PAGE_BG}; font-family:system-ui,sans-serif; }}
     .grid {{
       display:grid; width:100%; height:100%;
       grid-template-rows:repeat({len(SHOW_KEYS)},minmax(0,1fr));
@@ -129,22 +124,18 @@ html = f"""<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <div class="grid">
-    {cells_html}
-  </div>
+  <div class="grid">{cells_html}</div>
   <script>
   (function(){{
     const cellMap = {{}};
-    document.querySelectorAll('.cell').forEach(el => {{
-      cellMap[el.dataset.key] = el;
-    }});
-    function connect() {{
-      const ws = new WebSocket("ws://" + location.host + "/ws");
+    document.querySelectorAll('.cell').forEach(el=>{{ cellMap[el.dataset.key]=el; }});
+    function connect(){{
+      const ws = new WebSocket("ws://"+location.host+"/ws");
       ws.onopen    = () => console.log("▶ WS open");
       ws.onmessage = e => {{
         const [k,txt] = e.data.split(':');
         const c = cellMap[k];
-        if (c) c.querySelector('.middle-line').textContent = txt;
+        if(c) c.querySelector('.middle-line').textContent = txt;
       }};
       ws.onclose   = () => setTimeout(connect,1000);
       ws.onerror   = () => ws.close();
@@ -187,7 +178,7 @@ async def udp_listener():
             message_queue.put_nowait(msg)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
     sock.bind(("0.0.0.0", args.udp_port))
     await loop.create_datagram_endpoint(lambda: Proto(), sock=sock)
 
@@ -199,8 +190,8 @@ async def processor():
             bsp = float(msg.water_speed_knots)
             update_ema_and_state("BSP", bsp); broadcast("BSP")
         elif isinstance(msg, pynmea2.types.talker.MWV):
-            angle_180 = (float(msg.wind_angle) + 180) % 360 - 180
-            if msg.reference == "R":
+            angle_180 = (float(msg.wind_angle)+180)%360 - 180
+            if msg.reference=="R":
                 update_ema_and_state("AWA", angle_180); broadcast("AWA")
                 update_ema_and_state("AWS", float(msg.wind_speed)); broadcast("AWS")
             else:
