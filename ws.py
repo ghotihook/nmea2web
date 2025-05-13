@@ -128,28 +128,54 @@ async def ws_endpoint(ws: WebSocket):
 # ── UDP → WebSocket Bridge (port 2002) ──────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
-    class Proto(asyncio.DatagramProtocol):
-        def datagram_received(self, data, addr):
-            raw = data.decode().strip()
-            logging.info(f"⚡️ UDP recv {raw!r} from {addr}")
+
+    class UDPProtocol(asyncio.DatagramProtocol):
+        def datagram_received(self, data: bytes, addr):
+            raw_nmea = data.decode().strip()
+            logging.info(f"⚡️ UDP recv {raw_nmea!r} from {addr}")
+
+            # Parse NMEA sentence
             try:
-                msg = pynmea2.parse(raw)
+                msg = pynmea2.parse(raw_nmea)
             except pynmea2.ParseError:
                 return
-            for key, attr in NMEA_TO_CELLS.get(msg.sentence_type, []):
-                val = getattr(msg, attr, None)
-                if val is not None:
-                    unit = CELL_DISPLAY[key]["unit"]
-                    txt = f"{val}{unit}"
-                    # pad in Python
-                    middle = txt.center(MIDDLE_WIDTH)
-                    for ws in clients.copy():
-                        asyncio.create_task(ws.send_text(f"{key}:{middle}"))
 
+            # Route to configured cells
+            for cell_key, attr in NMEA_TO_CELLS.get(msg.sentence_type, []):
+                val = getattr(msg, attr, None)
+                if val is None:
+                    continue
+
+                unit = CELL_DISPLAY[cell_key]["unit"]
+
+                # 1) Core string = "<value><unit>"
+                core = f"{val}{unit}"
+
+                # 2) If negative, add one space on the right
+                if core.startswith("-"):
+                    core = core + " "
+
+                # 3) Prepend len(unit) spaces on the left
+                core = " " * len(unit) + core
+
+                # 4) Center in the fixed-width field
+                middle = core.center(MIDDLE_WIDTH)
+
+                # 5) Broadcast "cellKey:middle" to all clients
+                payload = f"{cell_key}:{middle}"
+                for ws in clients.copy():
+                    asyncio.create_task(ws.send_text(payload))
+
+    # Bind IPv4 UDP socket on port 2002 with SO_REUSEADDR
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", 2002))
-    await loop.create_datagram_endpoint(lambda: Proto(), sock=sock)
+
+    # Hand the socket off to asyncio
+    await loop.create_datagram_endpoint(
+        lambda: UDPProtocol(),
+        sock=sock
+    )
 
 @app.on_event("startup")
 async def startup():
