@@ -32,10 +32,10 @@ pip install fastapi uvicorn[standard] pynmea2
    python nmea2web.py --udp-port 2002 --web-port 8000 --log-level INFO --ema-smoothing-window 2.0 --display-data BSP TWA HDG
    ```
 
-4. Open your browser to `http://<host>:<web-port>/`.
+ Open your browser to `http://<host>:<web-port>/`.
 
 
-## hrome Kiosk Mode - Mac 
+### Chrome Kiosk Mode - Mac 
 ```open -a "Google Chrome" --args \
   --kiosk http://localhost:8000 \
   --incognito \
