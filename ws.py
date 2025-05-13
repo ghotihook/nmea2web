@@ -59,48 +59,77 @@ for row in LAYOUT:
 html = f"""
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"/><title>Live Grid</title>
+<head>
+  <meta charset="utf-8"/>
+  <title>Live Grid</title>
   <style>
-    html, body {{ margin:0; padding:{CELL_GAP}px; height:100%; background:{PAGE_BG}; box-sizing:border-box; }}
-    .grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:{CELL_GAP}px; height:100%; }}
+    html, body {{
+      margin: 0;
+      padding: {CELL_GAP}px;
+      height: 100%;
+      background: {PAGE_BG};
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }}
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: {CELL_GAP}px;
+      height: 100%;
+    }}
     .cell {{
-      background:{CELL_BG}; border-radius:{CELL_RADIUS}px;
-      display:flex; flex-direction:column; justify-content:space-between;
-      padding:4px; color:#0f0; user-select:none;
+      background: {CELL_BG};
+      border-radius: {CELL_RADIUS}px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 4px;
+      color: #0f0;
+      user-select: none;
     }}
     .top-line, .bottom-line {{
-      text-align:center; font-size:2.5vw; line-height:1; margin:2px 0;
+      text-align: center;
+      font-size: 2.5vw;
+      line-height: 1;
+      margin: 2px 0;
     }}
     .middle-line {{
-      text-align:center; 
-      font-family:monospace;     /* ensure fixed-width spaces */
-      white-space:pre;           /* preserve spaces */
-      font-size:5vw; line-height:1; 
-      font-variant-numeric:tabular-nums;
-      font-feature-settings:'tnum'; font-weight:bold;
+      text-align: center;
+      white-space: pre;       /* preserve spaces */
+      font-family: monospace; /* fixed-width for padding */
+      font-size: 5vw;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum';
+      font-weight: bold;
     }}
-    .span-1 {{ grid-column:span 1; }}
-    .span-2 {{ grid-column:span 2; }}
-    .span-4 {{ grid-column:span 4; }}
+    .span-1 {{ grid-column: span 1; }}
+    .span-2 {{ grid-column: span 2; }}
+    .span-4 {{ grid-column: span 4; }}
   </style>
 </head>
 <body>
-  <div class="grid">{cells_html}</div>
+  <div class="grid">
+    {cells_html}
+  </div>
   <script>
+    // map cellKey → cell element
     const cellMap = Object.fromEntries(
-      Array.from(document.querySelectorAll('.cell')).map(el => [el.dataset.key, el])
+      Array.from(document.querySelectorAll('.cell'))
+           .map(el => [el.dataset.key, el])
     );
+
     const ws = new WebSocket("ws://" + location.host + "/ws");
     ws.onopen    = () => console.log("▶ WS connected");
     ws.onclose   = () => console.log("✖ WS disconnected");
     ws.onmessage = e => {{
       const [key, raw] = e.data.split(':');
       const cell = cellMap[key];
-      if (!cell) return;
-      // compute padded middle string in JS as fallback
-      const unit = "{{}"};  // not used; Python padding includes unit
-      const padded = raw.padStart(({MIDDLE_WIDTH} + raw.length) / 2).padEnd({MIDDLE_WIDTH});
-      cell.querySelector('.middle-line').textContent = padded;
+      if (cell) {{
+        // raw already includes leading/trailing spaces
+        cell.querySelector('.middle-line').textContent = raw;
+      }}
     }};
   </script>
 </body>
