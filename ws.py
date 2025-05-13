@@ -9,38 +9,38 @@ from fastapi.responses import HTMLResponse
 # ── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# ── 1) Cell definitions ─────────────────────────────────────────────────────
+# ── 1) Cell definitions (no bottom labels) ─────────────────────────────────
 CELLS = {
-    "a": {"top": "Water Speed",   "format": "%0.1fkn", "bottom": ""},
-    "b": {"top": "True Heading",  "format": "%0.0f°",  "bottom": ""},
-    "c": {"top": "SOG",           "format": "%0.1fkn", "bottom": ""},
-    "d": {"top": "COG",           "format": "%0.0f°",  "bottom": ""},
+    "a": {"top": "Water Speed",  "format": "%0.1fkn"},
+    "b": {"top": "True Heading", "format": "%0.0f°"},
+    "c": {"top": "SOG",          "format": "%0.1fkn"},
+    "d": {"top": "COG",          "format": "%0.0f°"},
 }
 
-LAYOUT = ["a", "b", "c", "d"]  # one column, four rows
+# Order: one column, four rows
+LAYOUT = ["a", "b", "c", "d"]
 
-# ── 2) Appearance ──────────────────────────────────────────────────────────
+# ── 2) Appearance constants ─────────────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12  # px
 CELL_RADIUS = 8   # px
 
-# ── 3) Build HTML ──────────────────────────────────────────────────────────
+# ── 3) Build the HTML page ────────────────────────────────────────────────
 cells_html = ""
 for key in LAYOUT:
-    cfg         = CELLS[key]
+    cfg = CELLS[key]
     placeholder = cfg["format"] % 0
     cells_html += f'''
     <div class="cell" data-key="{key}">
       <div class="top-line">{cfg["top"]}</div>
       <div class="middle-line">{placeholder}</div>
-      <div class="bottom-line">{cfg["bottom"]}</div>
     </div>'''
 
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live Single-Column Dashboard</title>
   <style>
@@ -55,7 +55,6 @@ html = f"""<!DOCTYPE html>
       display: grid;
       width:100%; height:100%;
       grid-template-rows: repeat(4, minmax(0,1fr));
-      grid-template-columns: 1fr;
       gap: {CELL_GAP}px;
       padding: {CELL_GAP}px;
     }}
@@ -66,15 +65,14 @@ html = f"""<!DOCTYPE html>
       align-items: center; justify-content: center;
       padding: 6px; color: #0f0; user-select: none;
     }}
-    .top-line, .bottom-line {{
+    .top-line {{
       font-size: 2.5vw;
       text-align: center;
       margin: 4px 0;
       line-height: 1;
     }}
     .middle-line {{
-      /* as large as practical: ~60% of its row’s height */
-      font-size: 15vh;
+      font-size: 15vh;       /* large as practical */
       max-height: 100%;
       text-align: center;
       line-height: 1;
@@ -105,7 +103,7 @@ html = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-# ── 4) FastAPI & WebSocket ──────────────────────────────────────────────────
+# ── 4) FastAPI & WebSocket setup ───────────────────────────────────────────
 app = FastAPI()
 clients: list[WebSocket] = []
 
@@ -120,7 +118,7 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()
+            await ws.receive_text()  # keep-alive
     except WebSocketDisconnect:
         clients.remove(ws)
 
@@ -128,11 +126,12 @@ async def ws_endpoint(ws: WebSocket):
 async def get_page():
     return HTMLResponse(html)
 
-# ── 5) UDP Listener with simple if/elif ────────────────────────────────────
+# ── 5) UDP listener with simple if/elif routing ───────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
+
     class Proto(asyncio.DatagramProtocol):
-        def datagram_received(self, data, addr):
+        def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
             logging.info(f"UDP recv {raw!r}")
             try:
@@ -143,10 +142,12 @@ async def udp_listener():
             if isinstance(msg, pynmea2.types.talker.VHW):
                 broadcast("a", CELLS["a"]["format"] % msg.water_speed_knots)
                 broadcast("b", CELLS["b"]["format"] % msg.heading_true)
+
             elif isinstance(msg, pynmea2.types.talker.VTG):
                 broadcast("c", CELLS["c"]["format"] % msg.spd_over_grnd_kts)
                 broadcast("d", CELLS["d"]["format"] % msg.mag_track)
-            # add more cases here...
+
+            # add more cases if needed...
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
