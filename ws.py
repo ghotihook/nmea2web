@@ -147,7 +147,7 @@ async def udp_listener():
     # Manual IPv4 socket with reuse
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", 9999))
+    sock.bind(("0.0.0.0", 2002))
     await loop.create_datagram_endpoint(lambda: UDPProtocol(), sock=sock)
 
 @app.on_event("startup")
