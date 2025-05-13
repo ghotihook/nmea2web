@@ -10,7 +10,6 @@ from fastapi.responses import HTMLResponse
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # ── Layout (4-column grid) ─────────────────────────────────────────────────
-# Each tuple is (cellKey, spanUnits) where spanUnits ∈ {1,2,4}
 LAYOUT = [
     [("a", 2), ("b", 2)],
     [("c", 4)],
@@ -21,9 +20,8 @@ LAYOUT = [
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
     "b": ("VHW", "heading_true"),
-    # map c–g as you need…
+    # …add mappings for c–g here…
 }
-# Invert for lookup by sentence_type
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
     NMEA_TO_CELLS.setdefault(stype, []).append((key, attr))
@@ -46,12 +44,11 @@ CELL_GAP     = 12      # px
 CELL_RADIUS  = 8       # px
 MIDDLE_WIDTH = 11      # characters wide for padded value+unit
 
-# ── Build the cell markup ───────────────────────────────────────────────────
+# ── Build the cell HTML ─────────────────────────────────────────────────────
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
         ui = CELL_DISPLAY[key]
-        # placeholder spaces; will be overwritten by WebSocket
         placeholder = " " * MIDDLE_WIDTH
         cells_html += f'''
         <div class="cell span-{span}" data-key="{key}">
@@ -60,7 +57,7 @@ for row in LAYOUT:
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
-# ── The full HTML template ──────────────────────────────────────────────────
+# ── Full HTML with doubled braces for literals ──────────────────────────────
 html = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -129,14 +126,14 @@ html = f"""
   </div>
   <script>
   (function() {{
-    const cellMap = {{}};
+    const cellMap = {{}};  
     document.querySelectorAll('.cell').forEach(el => {{
       cellMap[el.dataset.key] = el;
     }});
     const ws = new WebSocket("ws://" + location.host + "/ws");
     ws.addEventListener('open',  () => console.log("▶ WS connected"));
     ws.addEventListener('close', () => console.log("✖ WS disconnected"));
-    ws.addEventListener('message', ({ data }) => {{
+    ws.addEventListener('message', ({{ data }}) => {{
       const [key, padded] = data.split(':');
       const cell = cellMap[key];
       if (cell) {{
@@ -163,14 +160,13 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # ignore keep-alive pings
+            await ws.receive_text()  # ignore keep-alives
     except WebSocketDisconnect:
         clients.remove(ws)
 
 # ── UDP → WebSocket bridge ──────────────────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
-
     class Proto(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
@@ -179,25 +175,16 @@ async def udp_listener():
                 msg = pynmea2.parse(raw)
             except pynmea2.ParseError:
                 return
-
             for key, attr in NMEA_TO_CELLS.get(msg.sentence_type, []):
                 val = getattr(msg, attr, None)
                 if val is None:
                     continue
-
                 unit = CELL_DISPLAY[key]["unit"]
                 core = f"{val}{unit}"
-
-                # if negative, pad right one space
                 if core.startswith("-"):
                     core += " "
-
-                # pad left by len(unit)
                 core = " " * len(unit) + core
-
-                # center in fixed-width field
                 middle = core.center(MIDDLE_WIDTH)
-
                 payload = f"{key}:{middle}"
                 for ws in clients.copy():
                     asyncio.create_task(ws.send_text(payload))
@@ -211,7 +198,6 @@ async def udp_listener():
 async def on_startup():
     asyncio.create_task(udp_listener())
 
-# ── Entrypoint ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
