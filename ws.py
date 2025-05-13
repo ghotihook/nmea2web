@@ -1,4 +1,3 @@
-#Comment
 import asyncio
 import logging
 import socket
@@ -19,22 +18,23 @@ LAYOUT = [
 
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
-    "b": ("VTG", "spd_over_grnd_kts"),
-    "c": ("HDG", "heading"),
-    # add c–g here...
+    "b": ("VHW", "heading_true"),
+    # map c–g as needed...
 }
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
     NMEA_TO_CELLS.setdefault(stype, []).append((key, attr))
 
+# ── Cell display config: top‐text, format‐template, bottom‐text ─────────────
+# format is a Python %-template, e.g. "%0.0f°", "%0.1fkn"
 CELL_DISPLAY = {
-    "a": {"top": "BSP",  "unit": "kn", "bottom": ""},
-    "b": {"top": "SOG", "unit": "°T","bottom": ""},
-    "c": {"top": "HDG",       "unit": "°",   "bottom": "Mag"},
-    "d": {"top": "Cell D",       "unit": "",   "bottom": ""},
-    "e": {"top": "Cell E",       "unit": "",   "bottom": ""},
-    "f": {"top": "Cell F",       "unit": "",   "bottom": ""},
-    "g": {"top": "Cell G",       "unit": "",   "bottom": ""},
+    "a": {"top": "Water Speed",  "format": "%0.1fkn", "bottom": ""},
+    "b": {"top": "True Heading", "format": "%0.0f°",  "bottom": ""},
+    "c": {"top": "Cell C",       "format": "%s",     "bottom": ""},
+    "d": {"top": "Cell D",       "format": "%s",     "bottom": ""},
+    "e": {"top": "Cell E",       "format": "%s",     "bottom": ""},
+    "f": {"top": "Cell F",       "format": "%s",     "bottom": ""},
+    "g": {"top": "Cell G",       "format": "%s",     "bottom": ""},
 }
 
 # ── Appearance ─────────────────────────────────────────────────────────────
@@ -47,9 +47,8 @@ CELL_RADIUS = 8    # px
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
-        ui = CELL_DISPLAY[key]
-        # initial placeholder will be overwritten by WebSocket
-        placeholder = f"–{ui['unit']}"
+        ui          = CELL_DISPLAY[key]
+        placeholder = ui["format"] % 0  # e.g. "0.0kn" or "0°"
         cells_html += f'''
         <div class="cell span-{span}" data-key="{key}">
           <div class="top-line">{ui["top"]}</div>
@@ -57,7 +56,7 @@ for row in LAYOUT:
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
-# ── Full HTML Template ─────────────────────────────────────────────────────
+# ── Full HTML Template ──────────────────────────────────────────────────────
 html = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -70,8 +69,7 @@ html = f"""
 
     html, body {{
       margin: 0;
-      width: 100vw;
-      height: 100vh;
+      width: 100vw; height: 100vh;
       overflow: hidden;
       background: {PAGE_BG};
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -80,10 +78,9 @@ html = f"""
 
     .grid {{
       display: grid;
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       grid-template-columns: repeat(4, minmax(0,1fr));
-      grid-auto-rows: minmax(0,1fr);
+      grid-auto-rows:    minmax(0,1fr);
       gap: {CELL_GAP}px;
       padding: {CELL_GAP}px;
     }}
@@ -161,7 +158,7 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # keep-alive
+            await ws.receive_text()  # ignore keep-alive
     except WebSocketDisconnect:
         clients.remove(ws)
 
@@ -182,9 +179,12 @@ async def udp_listener():
                 val = getattr(msg, attr, None)
                 if val is None:
                     continue
-                unit = CELL_DISPLAY[key]["unit"]
-                # simple Python formatting: value + unit
-                payload = f"{key}:{val}{unit}"
+                fmt      = CELL_DISPLAY[key]["format"]
+                try:
+                    text = fmt % float(val)
+                except Exception:
+                    text = fmt % val
+                payload = f"{key}:{text}"
                 for ws in clients.copy():
                     asyncio.create_task(ws.send_text(payload))
 
