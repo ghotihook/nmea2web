@@ -9,24 +9,22 @@ from fastapi.responses import HTMLResponse
 # ── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# ── Layout (4-column grid) ─────────────────────────────────────────────────
+# ── Layout & NMEA Mapping ───────────────────────────────────────────────────
 LAYOUT = [
     [("a", 2), ("b", 2)],
     [("c", 4)],
     [("d", 1), ("e", 1), ("f", 1), ("g", 1)],
 ]
 
-# ── NMEA → Cell mapping ─────────────────────────────────────────────────────
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
     "b": ("VHW", "heading_true"),
-    # …add mappings for c–g here…
+    # add c–g here...
 }
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
     NMEA_TO_CELLS.setdefault(stype, []).append((key, attr))
 
-# ── Static labels/units/bottom text ────────────────────────────────────────
 CELL_DISPLAY = {
     "a": {"top": "Water Speed",  "unit": "kn", "bottom": ""},
     "b": {"top": "True Heading", "unit": "°T","bottom": ""},
@@ -37,19 +35,19 @@ CELL_DISPLAY = {
     "g": {"top": "Cell G",       "unit": "",   "bottom": ""},
 }
 
-# ── Appearance & Padding ───────────────────────────────────────────────────
-PAGE_BG      = "rgb(20,32,48)"
-CELL_BG      = "rgb(46,50,69)"
-CELL_GAP     = 12      # px
-CELL_RADIUS  = 8       # px
-MIDDLE_WIDTH = 11      # characters wide for padded value+unit
+# ── Appearance ─────────────────────────────────────────────────────────────
+PAGE_BG     = "rgb(20,32,48)"
+CELL_BG     = "rgb(46,50,69)"
+CELL_GAP    = 12   # px
+CELL_RADIUS = 8    # px
 
-# ── Build the cell HTML ─────────────────────────────────────────────────────
+# ── Build the cells HTML ────────────────────────────────────────────────────
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
         ui = CELL_DISPLAY[key]
-        placeholder = " " * MIDDLE_WIDTH
+        # initial placeholder will be overwritten by WebSocket
+        placeholder = f"–{ui['unit']}"
         cells_html += f'''
         <div class="cell span-{span}" data-key="{key}">
           <div class="top-line">{ui["top"]}</div>
@@ -57,47 +55,40 @@ for row in LAYOUT:
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
-# ── Full HTML with proper scaling ────────────────────────────────────────────
+# ── Full HTML Template ─────────────────────────────────────────────────────
 html = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live Grid</title>
   <style>
-    :root {{
-      --page-bg: {PAGE_BG};
-      --cell-bg: {CELL_BG};
-      --cell-gap: {CELL_GAP}px;
-      --cell-radius: {CELL_RADIUS}px;
-      --font-sans: system-ui, -apple-system, BlinkMacSystemFont,
-                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    }}
+    * {{ box-sizing: border-box; }}
 
     html, body {{
       margin: 0;
+      width: 100vw;
       height: 100vh;
-    }}
-    body {{
-      background: var(--page-bg);
-      font-family: var(--font-sans);
+      overflow: hidden;
+      background: {PAGE_BG};
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                   Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
 
     .grid {{
       display: grid;
-      grid-template-columns: repeat(4,1fr);
-      /* allow rows to shrink below their content if needed */
-      grid-auto-rows: minmax(0, 1fr);
-      gap: var(--cell-gap);
-      padding: var(--cell-gap);
-      box-sizing: border-box;
+      width: 100%;
       height: 100%;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      grid-auto-rows: minmax(0,1fr);
+      gap: {CELL_GAP}px;
+      padding: {CELL_GAP}px;
     }}
 
     .cell {{
-      background: var(--cell-bg);
-      border-radius: var(--cell-radius);
+      background: {CELL_BG};
+      border-radius: {CELL_RADIUS}px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -115,8 +106,6 @@ html = f"""
     }}
 
     .middle-line {{
-      font-family: monospace;
-      white-space: pre;
       font-size: 5vw;
       text-align: center;
       line-height: 1;
@@ -141,10 +130,14 @@ html = f"""
       cellMap[el.dataset.key] = el;
     }});
     const ws = new WebSocket("ws://" + location.host + "/ws");
-    ws.addEventListener('message', ({{ data }}) => {{
-      const [key, padded] = data.split(':');
+    ws.addEventListener('open',  () => console.log("▶ WS connected"));
+    ws.addEventListener('close', () => console.log("✖ WS disconnected"));
+    ws.addEventListener('message', e => {{
+      const [key, text] = e.data.split(':');
       const cell = cellMap[key];
-      if (cell) cell.querySelector('.middle-line').textContent = padded;
+      if (cell) {{
+        cell.querySelector('.middle-line').textContent = text;
+      }}
     }});
   }})();
   </script>
@@ -152,9 +145,7 @@ html = f"""
 </html>
 """
 
-
-
-# ── FastAPI app & endpoints ─────────────────────────────────────────────────
+# ── FastAPI App ─────────────────────────────────────────────────────────────
 app = FastAPI()
 clients: list[WebSocket] = []
 
@@ -168,11 +159,11 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # ignore keep-alive
+            await ws.receive_text()  # keep-alive
     except WebSocketDisconnect:
         clients.remove(ws)
 
-# ── UDP → WebSocket bridge ──────────────────────────────────────────────────
+# ── UDP → WebSocket Bridge ─────────────────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
 
@@ -189,17 +180,9 @@ async def udp_listener():
                 val = getattr(msg, attr, None)
                 if val is None:
                     continue
-
                 unit = CELL_DISPLAY[key]["unit"]
-                core = f"{val}{unit}"
-
-                if core.startswith("-"):
-                    core += " "
-
-                core = " " * len(unit) + core
-                middle = core.center(MIDDLE_WIDTH)
-
-                payload = f"{key}:{middle}"
+                # simple Python formatting: value + unit
+                payload = f"{key}:{val}{unit}"
                 for ws in clients.copy():
                     asyncio.create_task(ws.send_text(payload))
 
