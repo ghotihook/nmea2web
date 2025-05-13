@@ -19,7 +19,8 @@ LAYOUT = [
 
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
-    "b": ("VHW", "heading_true"),
+    "b": ("VTG", "spd_over_grnd_kts"),
+    "c": ("HDG", "heading"),
     # add c–g here...
 }
 NMEA_TO_CELLS = {}
@@ -27,9 +28,9 @@ for key, (stype, attr) in CELL_NMEA_CONFIG.items():
     NMEA_TO_CELLS.setdefault(stype, []).append((key, attr))
 
 CELL_DISPLAY = {
-    "a": {"top": "Water Speed",  "unit": "kn", "bottom": ""},
-    "b": {"top": "True Heading", "unit": "°T","bottom": ""},
-    "c": {"top": "Cell C",       "unit": "",   "bottom": ""},
+    "a": {"top": "BSP",  "unit": "kn", "bottom": ""},
+    "b": {"top": "SOG", "unit": "°T","bottom": ""},
+    "c": {"top": "HDG",       "unit": "°",   "bottom": "Mag"},
     "d": {"top": "Cell D",       "unit": "",   "bottom": ""},
     "e": {"top": "Cell E",       "unit": "",   "bottom": ""},
     "f": {"top": "Cell F",       "unit": "",   "bottom": ""},
