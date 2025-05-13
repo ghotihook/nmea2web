@@ -15,7 +15,7 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 
 ---
 
-## Requirements
+## Requirements / Dependencies
 
 - Python 3.8+  
 - `fastapi`, `uvicorn[standard]`, `pynmea2`
@@ -26,11 +26,7 @@ pip install fastapi uvicorn[standard] pynmea2
 
 
 
-## Installation & Usage
-
-1. **Clone** your project folder (where `nmea2web.py` lives).  
-2. **Install** dependencies.  
-3. **Run** the server with any combination of:
+##  Usage
 
    ```bash
    python nmea2web.py --udp-port 2002 --web-port 8000 --log-level INFO --ema-smoothing-window 2.0 --display-data BSP TWA HDG
