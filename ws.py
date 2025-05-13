@@ -142,6 +142,12 @@ async def get_page():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     clients.append(ws)
+
+    # ← NEW: send the last-known value for each cell
+    for key, cfg in CELLS.items():
+        text = cfg["format"] % cfg["ema"]
+        await ws.send_text(f"{key}:{text}")
+
     try:
         while True:
             await ws.receive_text()  # keep-alive
