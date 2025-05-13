@@ -61,19 +61,9 @@ html = f"""
   <style>
     html, body {{ margin:0; padding:{CELL_GAP}px; height:100%; background:{PAGE_BG}; }}
     .grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:{CELL_GAP}px; height:100%; }}
-    .cell {{
-      background:{CELL_BG}; border-radius:{CELL_RADIUS}px;
-      display:flex; flex-direction:column; justify-content:space-around;
-      padding:4px; color:#0f0; user-select:none;
-    }}
-    .top-line, .bottom-line {{
-      text-align:center; font-size:2.5vw; line-height:1;
-    }}
-    .middle-line {{
-      text-align:center; font-size:5vw; line-height:1;
-      font-variant-numeric:tabular-nums;
-      font-feature-settings:'tnum'; font-weight:bold;
-    }}
+    .cell {{ background:{CELL_BG}; border-radius:{CELL_RADIUS}px; display:flex; flex-direction:column; justify-content:space-around; padding:4px; color:#0f0; user-select:none; }}
+    .top-line, .bottom-line {{ text-align:center; font-size:2.5vw; line-height:1; }}
+    .middle-line {{ text-align:center; font-size:5vw; line-height:1; font-variant-numeric:tabular-nums; font-feature-settings:'tnum'; font-weight:bold; }}
     .span-1 {{ grid-column:span 1; }}
     .span-2 {{ grid-column:span 2; }}
     .span-4 {{ grid-column:span 4; }}
@@ -86,15 +76,14 @@ html = f"""
       Array.from(document.querySelectorAll('.cell'))
            .map(el => [el.dataset.key, el])
     );
-    // use string concat instead of backticks inside f-string
     const ws = new WebSocket("ws://" + location.host + "/ws");
     ws.onopen = () => console.log("▶ WS connected");
     ws.onclose = () => console.log("✖ WS disconnected");
-    ws.onmessage = e => {
+    ws.onmessage = e => {{
       const [key, raw] = e.data.split(':');
       const cell = cellMap[key];
       if (cell) cell.querySelector('.middle-line').textContent = raw;
-    };
+    }};
   </script>
 </body>
 </html>
