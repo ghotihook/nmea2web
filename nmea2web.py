@@ -167,6 +167,7 @@ html = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
+
 # ── 6) FastAPI endpoints ────────────────────────────────────────────────────
 @app.get("/")
 async def get_page():
