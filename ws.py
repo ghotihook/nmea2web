@@ -33,7 +33,7 @@ cells_html = "".join(
     for row in LAYOUT for key, span in row
 )
 
-html = """
+html = f"""
 <!DOCTYPE html>
 <html>
 <head>
