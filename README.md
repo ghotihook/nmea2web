@@ -15,7 +15,7 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 
 ---
 
-## ── Requirements
+## Requirements
 
 - Python 3.8+  
 - `fastapi`, `uvicorn[standard]`, `pynmea2`
@@ -24,9 +24,9 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 pip install fastapi uvicorn[standard] pynmea2
 ```
 
----
 
-## ── Installation & Usage
+
+## Installation & Usage
 
 1. **Clone** your project folder (where `nmea2web.py` lives).  
 2. **Install** dependencies.  
@@ -39,16 +39,17 @@ pip install fastapi uvicorn[standard] pynmea2
 4. Open your browser to `http://<host>:<web-port>/`.
 
 
-## -- Chrome Kiosk Mode - Mac 
+## hrome Kiosk Mode - Mac 
 ```open -a "Google Chrome" --args \
   --kiosk http://localhost:8000 \
   --incognito \
   --no-first-run \
   --noerrdialogs \
-  --disable-infobars```
----
+  --disable-infobars
+```
 
-## ── Command-Line Arguments
+
+## Command-Line Arguments
 
 | Flag                         | Default                     | Description                                                          |
 |------------------------------|-----------------------------|----------------------------------------------------------------------|
@@ -58,9 +59,9 @@ pip install fastapi uvicorn[standard] pynmea2
 | `--ema-smoothing-window <s>` | `2.0`                       | EMA time constant in seconds                                         |
 | `--display-data <KEY> [...]` | `BSP TWA HDG`               | Which metrics (CELLS keys) to render                                 |
 
----
 
-## ── Configuration
+
+## Configuration
 
 All the configuration lives at the top of `nmea2web.py` and via the CLI flags:
 
@@ -76,9 +77,9 @@ All the configuration lives at the top of `nmea2web.py` and via the CLI flags:
 - **SHOW_KEYS** is set from `--display-data` to choose which cells appear.
 - **EMA_WINDOW** is set from `--ema-smoothing-window`.
 
----
 
-## ── How it Works
+
+## How it Works
 
 1. **UDP Listener**  
    - Binds UDP on the specified `--udp-port`  
@@ -100,9 +101,9 @@ All the configuration lives at the top of `nmea2web.py` and via the CLI flags:
    - Auto-reconnects, logs events, and updates DOM on each message  
    - Dynamically sizes fonts to ~15%/65% of cell height for label/value
 
----
 
-## ── Troubleshooting
+
+## Troubleshooting
 
 - **Invalid `--display-data` key**  
   The server will exit with an error listing valid CELLS keys.
@@ -115,4 +116,3 @@ All the configuration lives at the top of `nmea2web.py` and via the CLI flags:
   - Modify CSS sizing factors in the HTML template  
   - Change colors or opacity via the CSS rules in `nmea2web.py`
 
----
