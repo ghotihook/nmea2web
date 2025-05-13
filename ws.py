@@ -1,9 +1,8 @@
-#hi 
-
 import asyncio
 import logging
 import socket
 
+import pynmea2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
@@ -22,14 +21,28 @@ LAYOUT = [
     [("g", 1), ("h", 1), ("i", 1), ("j", 1)],  # row 4: four quarter-widths
 ]
 
-# Appearance
+# ── NMEA→Cell Mapping ──────────────────────────────────────────────────────
+# Map each cell key to (sentence_type, attribute_name)
+CELL_NMEA_CONFIG = {
+    "a": ("VHW", "water_speed_knots"),
+    "b": ("VHW", "heading_true"),
+    # add your own mappings here:
+    # "c": ("GGA", "latitude"),
+    # "d": ("VTG", "ground_speed_knots"),
+    # etc.
+}
+# Invert for fast lookup: { "VHW": [("a","water_speed_knots"),("b","heading_true")], ... }
+NMEA_TO_CELLS: dict[str, list[tuple[str,str]]] = {}
+for cell, (stype, attr) in CELL_NMEA_CONFIG.items():
+    NMEA_TO_CELLS.setdefault(stype, []).append((cell, attr))
+
+# ── Appearance ─────────────────────────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12   # px
 CELL_RADIUS = 8    # px corner radius
 
-# ── Build HTML ─────────────────────────────────────────────────────────────
-# flatten LAYOUT into a single string of <div> cells
+# ── Build HTML ──────────────────────────────────────────────────────────────
 cells_html = "".join(
     f'<div class="cell span-{span}" data-key="{key}">–</div>'
     for row in LAYOUT for key, span in row
@@ -69,17 +82,15 @@ html = f"""
     {cells_html}
   </div>
   <script>
-    // build a map key→cellElement
     const cellMap = Object.fromEntries(
       Array.from(document.querySelectorAll('.cell'))
            .map(el => [el.dataset.key, el])
     );
-    // open WS
     const ws = new WebSocket(`ws://${{location.host}}/ws`);
     ws.onopen = () => console.log("▶ WS connected");
     ws.onclose = () => console.log("✖ WS disconnected");
-    // on "key:value", update the matching cell
     ws.onmessage = e => {{
+      // incoming format "key:value"
       const [key, val] = e.data.split(":");
       if (cellMap[key]) cellMap[key].textContent = val;
     }};
@@ -88,7 +99,7 @@ html = f"""
 </html>
 """
 
-# ── FastAPI App ────────────────────────────────────────────────────────────
+# ── FastAPI App ─────────────────────────────────────────────────────────────
 app = FastAPI()
 clients: list[WebSocket] = []
 
@@ -102,7 +113,7 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # ignore, just keep alive
+            await ws.receive_text()  # ignore, just keep-alive
     except WebSocketDisconnect:
         clients.remove(ws)
 
@@ -112,12 +123,28 @@ async def udp_listener():
 
     class UDPProtocol(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
-            text = data.decode().strip()
-            logging.info(f"⚡️ UDP recv {text!r} from {addr}")
-            for ws in clients.copy():
-                asyncio.create_task(ws.send_text(text))
+            raw = data.decode().strip()
+            logging.info(f"⚡️ UDP recv {raw!r} from {addr}")
 
-    # manually create IPv4 socket with SO_REUSEADDR
+            # 1) parse NMEA
+            try:
+                msg = pynmea2.parse(raw)
+            except pynmea2.ParseError:
+                logging.warning(f"Failed to parse NMEA: {raw!r}")
+                return
+
+            # 2) route based on sentence_type
+            stype = msg.sentence_type  # e.g. "VHW"
+            if stype in NMEA_TO_CELLS:
+                for cell, attr in NMEA_TO_CELLS[stype]:
+                    val = getattr(msg, attr, None)
+                    if val is None:
+                        continue
+                    # 3) broadcast "cellKey:value"
+                    for ws in clients.copy():
+                        asyncio.create_task(ws.send_text(f"{cell}:{val}"))
+
+    # Manual IPv4 socket with reuse
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", 9999))
