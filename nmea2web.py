@@ -177,10 +177,10 @@ async def processor():
             angle_180 = (float(msg.wind_angle) + 180) % 360 - 180
             if msg.reference == "R":
                 update_ema_and_state("AWA", angle_180); broadcast("AWA")
-                update_ema_and_state("AWS", wind_speed); broadcast("AWS")
+                update_ema_and_state("AWS", msg.wind_speed); broadcast("AWS")
             else:  # reference == "T"
                 update_ema_and_state("TWA", angle_180); broadcast("TWA")
-                update_ema_and_state("TWS", wind_speed); broadcast("TWS")
+                update_ema_and_state("TWS", msgwind_speed); broadcast("TWS")
 
         elif isinstance(msg, pynmea2.types.talker.HDG):
             hdg = float(msg.heading)
