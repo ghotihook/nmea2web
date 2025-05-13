@@ -12,22 +12,34 @@ from fastapi.responses import HTMLResponse
 
 # ── 0) Parse command-line arguments ─────────────────────────────────────────
 parser = argparse.ArgumentParser(description="Live NMEA EMA Dashboard")
-parser.add_argument("--udp-port", type=int, default=2002,
-                    help="UDP port to listen for NMEA sentences (default: 2002)")
-parser.add_argument("--web-port", type=int, default=8000,
-                    help="HTTP/WebSocket server port (default: 8000)")
-parser.add_argument("--log-level",
-                    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                    default="ERROR",
-                    help="Logging level (default: ERROR)")
-parser.add_argument("--display-data", nargs="+", metavar="KEY",
-                    default=["BSP", "TWA", "HDG"],
-                    help="Which CELLS keys to display (default: BSP TWA HDG)")
+parser.add_argument(
+    "--udp-port", type=int, default=2002,
+    help="UDP port to listen for NMEA sentences (default: 2002)",
+)
+parser.add_argument(
+    "--web-port", type=int, default=8000,
+    help="HTTP/WebSocket server port (default: 8000)",
+)
+parser.add_argument(
+    "--log-level",
+    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    default="ERROR",
+    help="Logging level (default: ERROR)",
+)
+parser.add_argument(
+    "--display-data", nargs="+", metavar="KEY",
+    default=["BSP", "TWA", "HDG"],
+    help="Which CELLS keys to display (default: BSP TWA HDG)",
+)
+parser.add_argument(
+    "--ema-smoothing-window", type=float, default=2.0,
+    help="EMA smoothing time constant in seconds (default: 2.0)",
+)
 args = parser.parse_args()
 
-# ── Validate display-data keys ───────────────────────────────────────────────
+# ── 1) Define and validate cell keys ─────────────────────────────────────────
 CELLS = {
-    "BSP": {"top":"BSP (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
+    "BSP": {"top":"BSP (kt)",    "format":"%0.2f", "ema":0.0, "last_ts":None},
     "TWA": {"top":"TWA",         "format":" %0.0f°","ema":0.0, "last_ts":None},
     "HDG": {"top":"HDG (mag)",   "format":" %0.0f°","ema":0.0, "last_ts":None},
     "TWS": {"top":"TWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
@@ -46,14 +58,14 @@ if invalid:
 
 SHOW_KEYS = args.display_data
 
-# ── 1) Logging ──────────────────────────────────────────────────────────────
+# ── 2) Logging ──────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=getattr(logging, args.log_level),
     format="%(asctime)s %(levelname)s: %(message)s",
 )
 
-# ── 2) EMA config & state ───────────────────────────────────────────────────
-EMA_WINDOW = 1.0  # seconds time-constant for EMA
+# ── 3) EMA configuration ────────────────────────────────────────────────────
+EMA_WINDOW = args.ema_smoothing_window
 
 def update_ema_and_state(key: str, raw_value: float):
     now = time.time()
@@ -67,7 +79,7 @@ def update_ema_and_state(key: str, raw_value: float):
         cell["ema"] += alpha * (raw_value - cell["ema"])
     cell["last_ts"] = now
 
-# ── 3) Shared queue & WebSocket state ──────────────────────────────────────
+# ── 4) Shared queue & WebSocket state ──────────────────────────────────────
 message_queue = asyncio.Queue()
 app = FastAPI()
 clients: list[WebSocket] = []
@@ -79,7 +91,7 @@ def broadcast(key: str):
     for ws in clients.copy():
         asyncio.create_task(ws.send_text(payload))
 
-# ── 4) Build HTML (only SHOW_KEYS) ─────────────────────────────────────────
+# ── 5) Build HTML (with dynamic sizing & centering) ─────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12
@@ -88,110 +100,74 @@ CELL_RADIUS = 8
 cells_html = ""
 for key in SHOW_KEYS:
     cfg = CELLS[key]
-    placeholder = cfg["format"] % 0
+    ph = cfg["format"] % 0
     cells_html += f'''
     <div class="cell" data-key="{key}">
       <div class="top-line">{cfg["top"]}</div>
-      <div class="middle-line">{placeholder}</div>
+      <div class="middle-line">{ph}</div>
     </div>'''
+
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live EMA Dashboard</title>
   <style>
     * {{ box-sizing: border-box; }}
-    html, body {{
-      margin: 0; width:100vw; height:100vh; overflow:hidden;
-      background: {PAGE_BG};
-      font-family: system-ui, -apple-system, BlinkMacSystemFont,
-                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    html,body {{
+      margin:0; width:100vw; height:100vh; overflow:hidden;
+      background:{PAGE_BG}; font-family:system-ui,sans-serif;
     }}
     .grid {{
-      display: grid;
-      width:100%; height:100%;
-      grid-template-rows: repeat({len(SHOW_KEYS)}, minmax(0,1fr));
-      gap: {CELL_GAP}px;
-      padding: {CELL_GAP}px;
+      display:grid; width:100%; height:100%;
+      grid-template-rows:repeat({len(SHOW_KEYS)},minmax(0,1fr));
+      gap:{CELL_GAP}px; padding:{CELL_GAP}px;
     }}
     .cell {{
-      background: {CELL_BG};
-      border-radius: {CELL_RADIUS}px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 6px;
-      color: #0f0;
-      user-select: none;
+      background:{CELL_BG}; border-radius:{CELL_RADIUS}px;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:6px; color:#0f0; user-select:none;
     }}
-    .top-line {{
-      flex: 0 0 25%;       /* reserve 25% of cell height */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      white-space: nowrap;
-    }}
-    .middle-line {{
-      flex: 0 0 50%;       /* reserve 50% of cell height */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-variant-numeric: tabular-nums;
-      font-feature-settings: 'tnum';
-      font-weight: bold;
-      white-space: pre;    /* preserve leading spaces for padding */
-    }}
+    .top-line {{ flex:0 0 25%; display:flex; align-items:center; justify-content:center; white-space:nowrap; }}
+    .middle-line {{ flex:0 0 50%; display:flex; align-items:center; justify-content:center;
+                    font-variant-numeric:tabular-nums; font-feature-settings:'tnum';
+                    font-weight:bold; white-space:pre; }}
   </style>
 </head>
 <body>
-  <div class="grid">
-    {cells_html}
-  </div>
+  <div class="grid">{cells_html}</div>
   <script>
-  // resizeFonts: set font-size so top =25%, middle=50% of cell height
-  function resizeFonts() {{
-    document.querySelectorAll('.cell').forEach(cell => {{
-      const h = cell.clientHeight;
-      const top = cell.querySelector('.top-line');
-      const mid = cell.querySelector('.middle-line');
-      top.style.fontSize    = `${{0.15 * h}}px`;
-      mid.style.fontSize    = `${{0.65 * h}}px`;
-      // line-height = 1 to avoid extra spacing
-      top.style.lineHeight  = '1';
-      mid.style.lineHeight  = '1';
-    }});
-  }}
-
-  ;(function() {{
-    const cellMap = {{}};
-    document.querySelectorAll('.cell').forEach(el => {{
-      cellMap[el.dataset.key] = el;
-    }});
-
-    // WebSocket with auto‐reconnect
-    function connect() {{
-      const ws = new WebSocket("ws://" + location.host + "/ws");
-      ws.onopen    = () => console.log("▶ WS open");
-      ws.onmessage = e => {{
-        const [k,txt] = e.data.split(':');
-        const c = cellMap[k];
-        if (c) c.querySelector('.middle-line').textContent = txt;
-      }};
-      ws.onclose   = () => setTimeout(connect, 1000);
-      ws.onerror   = () => ws.close();
+    function resizeFonts() {{
+      document.querySelectorAll('.cell').forEach(cell => {{
+        const h = cell.clientHeight;
+        cell.querySelector('.top-line').style.fontSize = `${{0.25 * h}}px`;
+        cell.querySelector('.middle-line').style.fontSize = `${{0.50 * h}}px`;
+      }});
     }}
-    connect();
-
-    // initial + on‐resize
-    window.addEventListener('load', resizeFonts);
-    window.addEventListener('resize', resizeFonts);
-  }})();
+    ;(function(){{
+      const cellMap = {{}};
+      document.querySelectorAll('.cell').forEach(el=>{{cellMap[el.dataset.key]=el;}});
+      function connect() {{
+        const ws = new WebSocket("ws://"+location.host+"/ws");
+        ws.onopen    = ()=>console.log("▶ WS open");
+        ws.onmessage = e=>{{
+          const [k,txt] = e.data.split(':');
+          const c = cellMap[k];
+          if(c) c.querySelector('.middle-line').textContent = txt;
+        }};
+        ws.onclose   = ()=>setTimeout(connect,1000);
+        ws.onerror   = ()=>ws.close();
+      }}
+      connect();
+      window.addEventListener('load', resizeFonts);
+      window.addEventListener('resize', resizeFonts);
+    }})();
   </script>
 </body>
 </html>"""
-# ── 5) FastAPI endpoints ────────────────────────────────────────────────────
+
+# ── 6) FastAPI endpoints ────────────────────────────────────────────────────
 @app.get("/")
 async def get_page():
     return HTMLResponse(html)
@@ -200,7 +176,6 @@ async def get_page():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     clients.append(ws)
-    # send last-known for displayed keys
     for key in SHOW_KEYS:
         cfg = CELLS[key]
         await ws.send_text(f"{key}:{cfg['format']%cfg['ema']}")
@@ -210,7 +185,7 @@ async def ws_endpoint(ws: WebSocket):
     except WebSocketDisconnect:
         clients.remove(ws)
 
-# ── 6) UDP listener → enqueue messages ──────────────────────────────────────
+# ── 7) UDP listener → enqueue messages ──────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
     class Proto(asyncio.DatagramProtocol):
@@ -225,9 +200,9 @@ async def udp_listener():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
     sock.bind(("0.0.0.0", args.udp_port))
-    await loop.create_datagram_endpoint(lambda: Proto(), sock=sock)
+    await loop.create_datagram_endpoint(lambda:Proto(), sock=sock)
 
-# ── 7) Processor: parse → EMA → broadcast ──────────────────────────────────
+# ── 8) Processor: parse → EMA → broadcast ──────────────────────────────────
 async def processor():
     while True:
         msg = await message_queue.get()
@@ -236,7 +211,7 @@ async def processor():
             update_ema_and_state("BSP", bsp); broadcast("BSP")
         elif isinstance(msg, pynmea2.types.talker.MWV):
             angle_180 = (float(msg.wind_angle)+180)%360 - 180
-            if msg.reference=="R":
+            if msg.reference == "R":
                 update_ema_and_state("AWA", angle_180); broadcast("AWA")
                 update_ema_and_state("AWS", float(msg.wind_speed)); broadcast("AWS")
             else:
