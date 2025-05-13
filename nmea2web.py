@@ -27,27 +27,27 @@ parser.add_argument(
     help="Logging level (default: ERROR)",
 )
 parser.add_argument(
+    "--ema-smoothing-window", type=float, default=2.0,
+    help="EMA smoothing time constant in seconds (default: 2.0)",
+)
+parser.add_argument(
     "--display-data", nargs="+", metavar="KEY",
     default=["BSP", "TWA", "HDG"],
     help="Which CELLS keys to display (default: BSP TWA HDG)",
-)
-parser.add_argument(
-    "--ema-smoothing-window", type=float, default=2.0,
-    help="EMA smoothing time constant in seconds (default: 2.0)",
 )
 args = parser.parse_args()
 
 # ── 1) Define and validate cell keys ─────────────────────────────────────────
 CELLS = {
-    "BSP": {"top":"BSP (kt)",    "format":"%0.2f", "ema":0.0, "last_ts":None},
-    "TWA": {"top":"TWA",         "format":" %0.0f°","ema":0.0, "last_ts":None},
-    "HDG": {"top":"HDG (mag)",   "format":" %0.0f°","ema":0.0, "last_ts":None},
-    "TWS": {"top":"TWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "AWA": {"top":"AWA",         "format":" %0.0f°","ema":0.0, "last_ts":None},
-    "AWS": {"top":"AWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "SOG": {"top":"SOG (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "COG": {"top":"COG",         "format":" %0.0f°","ema":0.0, "last_ts":None},
-    "TWD": {"top":"TWD",         "format":" %0.0f°","ema":0.0, "last_ts":None},
+    "BSP": {"top":"BSP (kt)",    "format":"%2.1f", "ema":0.0, "last_ts":None},
+    "TWA": {"top":"TWA",         "format":" %3.0f°","ema":0.0, "last_ts":None},
+    "HDG": {"top":"HDG (mag)",   "format":" %3.0f°","ema":0.0, "last_ts":None},
+    "TWS": {"top":"TWS (kt)",    "format":"%2.1f", "ema":0.0, "last_ts":None},
+    "AWA": {"top":"AWA",         "format":" %3.0f°","ema":0.0, "last_ts":None},
+    "AWS": {"top":"AWS (kt)",    "format":"%2.1f", "ema":0.0, "last_ts":None},
+    "SOG": {"top":"SOG (kt)",    "format":"%2.1f", "ema":0.0, "last_ts":None},
+    "COG": {"top":"COG",         "format":" %3.0f°","ema":0.0, "last_ts":None},
+    "TWD": {"top":"TWD",         "format":" %3.0f°","ema":0.0, "last_ts":None},
 }
 
 invalid = [k for k in args.display_data if k not in CELLS]
@@ -129,7 +129,7 @@ html = f"""<!DOCTYPE html>
       align-items:center; justify-content:center;
       padding:6px; color:#0f0; user-select:none;
     }}
-    .top-line {{ flex:0 0 25%; display:flex; align-items:center; justify-content:center; white-space:nowrap; }}
+    .top-line {{ flex:0 0 25%; display:flex; align-items:center; justify-content:center; white-space:nowrap;opacity: 0.7; }}
     .middle-line {{ flex:0 0 50%; display:flex; align-items:center; justify-content:center;
                     font-variant-numeric:tabular-nums; font-feature-settings:'tnum';
                     font-weight:bold; white-space:pre; }}
@@ -141,8 +141,8 @@ html = f"""<!DOCTYPE html>
     function resizeFonts() {{
       document.querySelectorAll('.cell').forEach(cell => {{
         const h = cell.clientHeight;
-        cell.querySelector('.top-line').style.fontSize = `${{0.25 * h}}px`;
-        cell.querySelector('.middle-line').style.fontSize = `${{0.50 * h}}px`;
+        cell.querySelector('.top-line').style.fontSize = `${{0.15 * h}}px`;
+        cell.querySelector('.middle-line').style.fontSize = `${{0.65 * h}}px`;
       }});
     }}
     ;(function(){{
