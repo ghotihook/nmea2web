@@ -1,6 +1,3 @@
-#required
-#pip install "uvicorn[standard]" fastapi
-
 import asyncio
 import logging
 import socket
@@ -76,30 +73,27 @@ async def udp_listener():
 
     class UDPProtocol(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
-            msg = data.decode().strip()
-            logging.info(f"⚡️ UDP received {msg!r} from {addr}")
+            message = data.decode().strip()
+            logging.info(f"⚡️ UDP received {message!r} from {addr}")
             for ws in clients.copy():
-                asyncio.create_task(ws.send_text(msg))
+                # fire-and-forget; one bad client won't block others
+                asyncio.create_task(ws.send_text(message))
 
-    # IPv4 with reuse
+    # Bind IPv4
     await loop.create_datagram_endpoint(
         lambda: UDPProtocol(),
-        local_addr=("0.0.0.0", 9999)
+        local_addr=("0.0.0.0", 9999),
     )
 
-    # (Optional) IPv6 dual-stack with reuse
+    # Also try IPv6 (optional)
     try:
         await loop.create_datagram_endpoint(
             lambda: UDPProtocol(),
             local_addr=("::", 9999),
             family=socket.AF_INET6,
-            reuse_address=True,
-            reuse_port=True,
         )
     except Exception as e:
         logging.warning(f"Could not bind IPv6 UDP socket: {e}")
-
-
 
 @app.on_event("startup")
 async def on_startup():
