@@ -12,10 +12,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
 )
 
-# ── New Layout (4-column grid) ─────────────────────────────────────────────
-# Row 1: a=1/2, b=1/2
-# Row 2: c=full-width
-# Row 3: d/e/f/g = four quarter-widths
+# ── Layout (4-column grid) ─────────────────────────────────────────────────
 LAYOUT = [
     [("a", 2), ("b", 2)],
     [("c", 4)],
@@ -26,21 +23,21 @@ LAYOUT = [
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
     "b": ("VHW", "heading_true"),
-    # extend as needed…
+    # add mappings for c–g as needed...
 }
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
     NMEA_TO_CELLS.setdefault(stype, []).append((key, attr))
 
-# ── Cell static labels/units/bottom text ────────────────────────────────────
+# ── Static labels/units/bottom text ────────────────────────────────────────
 CELL_DISPLAY = {
-    "a": {"top": "Water Speed",   "unit": "kn", "bottom": "ok"},
-    "b": {"top": "True Heading",  "unit": "°T", "bottom": "test"},
-    "c": {"top": "Cell C",        "unit": "",   "bottom": ""},
-    "d": {"top": "Cell D",        "unit": "",   "bottom": ""},
-    "e": {"top": "Cell E",        "unit": "",   "bottom": ""},
-    "f": {"top": "Cell F",        "unit": "",   "bottom": ""},
-    "g": {"top": "Cell G",        "unit": "",   "bottom": ""},
+    "a": {"top": "Water Speed",  "unit": "kn", "bottom": ""},
+    "b": {"top": "True Heading", "unit": "°T","bottom": ""},
+    "c": {"top": "Cell C",       "unit": "",   "bottom": ""},
+    "d": {"top": "Cell D",       "unit": "",   "bottom": ""},
+    "e": {"top": "Cell E",       "unit": "",   "bottom": ""},
+    "f": {"top": "Cell F",       "unit": "",   "bottom": ""},
+    "g": {"top": "Cell G",       "unit": "",   "bottom": ""},
 }
 
 # ── Appearance ─────────────────────────────────────────────────────────────
@@ -49,18 +46,18 @@ CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12   # px
 CELL_RADIUS = 8    # px
 
-# ── Build the HTML (with sign/value/unit middle line) ──────────────────────
+# ── Build HTML ──────────────────────────────────────────────────────────────
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
-        ui = CELL_DISPLAY.get(key, {"top": key, "unit": "", "bottom": ""})
+        ui   = CELL_DISPLAY.get(key, {"top": key, "unit": "", "bottom": ""})
         cells_html += f'''
-        <div class="cell span-{span}" data-key="{key}">
+        <div class="cell span-{span}" data-key="{key}" data-unit="{ui["unit"]}">
           <div class="top-line">{ui["top"]}</div>
           <div class="middle-line">
-            <div class="sign-line"></div>
-            <div class="value-line">–</div>
-            <div class="unit-line">{ui["unit"]}</div>
+            <span class="sign-line"></span>
+            <span class="value-line">–</span>
+            <span class="unit-line">{ui["unit"]}</span>
           </div>
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
@@ -93,37 +90,39 @@ html = f"""
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: space-between;
+      padding: 4px;
       color: #0f0;
       user-select: none;
-      padding: 4px;
     }}
     .top-line, .bottom-line {{
       font-size: 2.5vw;
+      line-height: 1;
       margin: 2px 0;
     }}
     .middle-line {{
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
       width: 100%;
     }}
     .sign-line {{
-      text-align: right;
       font-size: 5vw;
-      padding-right: 0.2ch;
+      line-height: 1;
+      /* no margin so sign hugs value */
     }}
     .value-line {{
-      text-align: center;
       font-size: 5vw;
+      line-height: 1;
+      margin: 0 0.1ch;
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum';
       font-weight: bold;
     }}
     .unit-line {{
-      text-align: left;
       font-size: 3vw;
-      padding-left: 0.2ch;
+      line-height: 1;
+      /* no margin so unit hugs value */
     }}
     .span-1 {{ grid-column: span 1; }}
     .span-2 {{ grid-column: span 2; }}
@@ -148,11 +147,13 @@ html = f"""
       const [key, raw] = e.data.split(":");
       const cell = cellMap[key];
       if (!cell) return;
-      // split sign from numeric
-      const sign = raw.startsWith('-') ? '-' : '';
-      const num  = sign ? raw.slice(1) : raw;
+      const isNeg = raw.startsWith("-");
+      const sign  = isNeg ? "-" : "";
+      const num   = isNeg ? raw.slice(1) : raw;
+      // update sign, value (centered), unit (from data-unit)
       cell.querySelector('.sign-line').textContent = sign;
       cell.querySelector('.value-line').textContent = num;
+      // unit-line already contains the unit text
     }};
   </script>
 </body>
@@ -173,7 +174,7 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # ignore keep-alives
+            await ws.receive_text()  # keep-alive
     except WebSocketDisconnect:
         clients.remove(ws)
 
@@ -185,7 +186,6 @@ async def udp_listener():
         def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
             logging.info(f"⚡️ UDP recv {raw!r} from {addr}")
-
             try:
                 msg = pynmea2.parse(raw)
             except pynmea2.ParseError:
