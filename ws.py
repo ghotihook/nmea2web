@@ -52,11 +52,13 @@ for row in LAYOUT:
     for key, span in row:
         ui   = CELL_DISPLAY.get(key, {"top": key, "unit": "", "bottom": ""})
         cells_html += f'''
-        <div class="cell span-{span}" data-key="{key}" data-unit="{ui["unit"]}">
+        <div class="cell span-{span}" data-key="{key}">
           <div class="top-line">{ui["top"]}</div>
           <div class="middle-line">
-            <span class="sign-line"></span>
-            <span class="value-line">–</span>
+            <div class="value-group">
+              <span class="sign-line"></span>
+              <span class="value-line">–</span>
+            </div>
             <span class="unit-line">{ui["unit"]}</span>
           </div>
           <div class="bottom-line">{ui["bottom"]}</div>
@@ -89,40 +91,46 @@ html = f"""
       border-radius: {CELL_RADIUS}px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      padding: 4px;
+      padding: 6px;
       color: #0f0;
       user-select: none;
     }}
     .top-line, .bottom-line {{
+      flex: 0 0 auto;
       font-size: 2.5vw;
-      line-height: 1;
+      text-align: center;
       margin: 2px 0;
     }}
     .middle-line {{
+      position: relative;
+      flex: 1 1 auto;
       display: flex;
+      align-items: center;
       justify-content: center;
-      align-items: baseline;
       width: 100%;
+    }}
+    .value-group {{
+      display: inline-flex;
+      align-items: baseline;
+      justify-content: center;
     }}
     .sign-line {{
       font-size: 5vw;
       line-height: 1;
-      /* no margin so sign hugs value */
+      margin-right: 0.1ch;
     }}
     .value-line {{
       font-size: 5vw;
       line-height: 1;
-      margin: 0 0.1ch;
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum';
       font-weight: bold;
     }}
     .unit-line {{
+      position: absolute;
+      right: 6px;
       font-size: 3vw;
       line-height: 1;
-      /* no margin so unit hugs value */
     }}
     .span-1 {{ grid-column: span 1; }}
     .span-2 {{ grid-column: span 2; }}
@@ -134,7 +142,6 @@ html = f"""
     {cells_html}
   </div>
   <script>
-    // build map key→cellElem
     const cellMap = Object.fromEntries(
       Array.from(document.querySelectorAll('.cell'))
            .map(el => [el.dataset.key, el])
@@ -150,10 +157,9 @@ html = f"""
       const isNeg = raw.startsWith("-");
       const sign  = isNeg ? "-" : "";
       const num   = isNeg ? raw.slice(1) : raw;
-      // update sign, value (centered), unit (from data-unit)
       cell.querySelector('.sign-line').textContent = sign;
       cell.querySelector('.value-line').textContent = num;
-      // unit-line already contains the unit text
+      // unit-line stays in the right corner
     }};
   </script>
 </body>
