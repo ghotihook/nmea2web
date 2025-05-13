@@ -17,7 +17,7 @@ EMA_WINDOW = 1.0  # seconds time-constant for EMA
 # master list of every metric you collect
 CELLS = {
     "BSP": {"top":"BSP (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "TWA": {"top":"TWA",         "format":"_%0.0f°","ema":0.0, "last_ts":None},
+    "TWA": {"top":"TWA",         "format":" %0.0f°","ema":0.0, "last_ts":None},
     "HDG": {"top":"HDG (mag)",   "format":" %0.0f°","ema":0.0, "last_ts":None},
     "TWS": {"top":"TWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
     "AWA": {"top":"AWA",         "format":" %0.0f°","ema":0.0, "last_ts":None},
@@ -72,6 +72,7 @@ for key in SHOW_KEYS:
       <div class="middle-line">{ph}</div>
     </div>'''
 
+# ── Updated HTML template with white-space: pre for leading spaces ─────────────────────────────────────────────────
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -80,47 +81,60 @@ html = f"""<!DOCTYPE html>
   <title>Live EMA Dashboard</title>
   <style>
     * {{ box-sizing: border-box; }}
-    html,body {{
-      margin:0; width:100vw; height:100vh; overflow:hidden;
-      background:{PAGE_BG}; font-family:system-ui,sans-serif;
+    html, body {{
+      margin: 0; width:100vw; height:100vh; overflow:hidden;
+      background: {PAGE_BG};
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
     .grid {{
-      display:grid; width:100%; height:100%;
-      grid-template-rows:repeat({len(SHOW_KEYS)},minmax(0,1fr));
-      gap:{CELL_GAP}px; padding:{CELL_GAP}px;
+      display: grid; width:100%; height:100%;
+      grid-template-rows: repeat({len(SHOW_KEYS)}, minmax(0,1fr));
+      gap: {CELL_GAP}px; padding: {CELL_GAP}px;
     }}
     .cell {{
-      background:{CELL_BG}; border-radius:{CELL_RADIUS}px;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      padding:6px; color:#0f0; user-select:none;
+      background: {CELL_BG}; border-radius: {CELL_RADIUS}px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 6px; color: #0f0; user-select: none;
     }}
-    .top-line {{ font-size:2.5vw; text-align:center; margin:4px 0; line-height:1; }}
+    .top-line {{
+      font-size: 2.5vw;
+      text-align: center;
+      margin: 4px 0;
+      line-height: 1;
+    }}
     .middle-line {{
-      font-size:15vh; max-height:100%; text-align:center; line-height:1;
-      font-variant-numeric:tabular-nums; font-feature-settings:'tnum'; font-weight:bold;
+      font-size: 15vh;        /* as large as practical */
+      max-height: 100%;
+      text-align: center;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum';
+      font-weight: bold;
+      white-space: pre;       /* preserve leading spaces */
     }}
   </style>
 </head>
 <body>
-  <div class="grid">{cells_html}</div>
+  <div class="grid">
+    {cells_html}
+  </div>
   <script>
-  (function(){{
+  (function() {{
     const cellMap = {{}};
-    document.querySelectorAll('.cell').forEach(el=>{{
+    document.querySelectorAll('.cell').forEach(el => {{
       cellMap[el.dataset.key] = el;
     }});
     function connect() {{
       const ws = new WebSocket("ws://" + location.host + "/ws");
-      ws.onopen    = () => console.log("▶ WS open");
       ws.onmessage = e => {{
-        console.log("◀ WS msg", e.data);
-        const [k,txt] = e.data.split(':');
-        const c = cellMap[k];
-        if(c) c.querySelector('.middle-line').textContent = txt;
+        const [key, text] = e.data.split(':');
+        const c = cellMap[key];
+        if (c) c.querySelector('.middle-line').textContent = text;
       }};
-      ws.onclose   = () => setTimeout(connect,1000);
-      ws.onerror   = () => ws.close();
+      ws.onclose = () => setTimeout(connect, 1000);
+      ws.onerror = () => ws.close();
     }}
     connect();
   }})();
