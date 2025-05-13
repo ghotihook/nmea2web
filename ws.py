@@ -14,7 +14,7 @@ CELLS = {
     "a": {"top": "BSP (kt)",     "format": "%0.1f"},
     "b": {"top": "Target (kt)",  "format": "%0.1f"},
     "c": {"top": "TWA",          "format": "%0.0f°"},
-    "d": {"top": "HDG",          "format": "%0.0f°"},
+    "d": {"top": "HDG (mag)",          "format": "%0.0f°"},
 }
 
 # Order: one column, four rows
