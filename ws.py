@@ -10,29 +10,25 @@ from fastapi.responses import HTMLResponse
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # ── 1) Cell definitions ─────────────────────────────────────────────────────
-# Define exactly four cells in a single column.
-# Each has a top label, a Python %-format for the value, and a bottom label.
 CELLS = {
-    "a": {"top": "Water Speed",  "format": "%0.1fkn", "bottom": ""},
-    "b": {"top": "True Heading", "format": "%0.0f°",  "bottom": ""},
-    "c": {"top": "SOG",          "format": "%0.1fkn", "bottom": ""},
-    "d": {"top": "COG",          "format": "%0.0f°",  "bottom": ""},
+    "a": {"top": "Water Speed",   "format": "%0.1fkn", "bottom": ""},
+    "b": {"top": "True Heading",  "format": "%0.0f°",  "bottom": ""},
+    "c": {"top": "SOG",           "format": "%0.1fkn", "bottom": ""},
+    "d": {"top": "COG",           "format": "%0.0f°",  "bottom": ""},
 }
 
-# The order in which cells appear (one column, four rows)
-LAYOUT = ["a", "b", "c", "d"]
+LAYOUT = ["a", "b", "c", "d"]  # one column, four rows
 
-# ── 2) Appearance constants ─────────────────────────────────────────────────
+# ── 2) Appearance ──────────────────────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12  # px
 CELL_RADIUS = 8   # px
 
-# ── 3) Build the initial HTML ───────────────────────────────────────────────
+# ── 3) Build HTML ──────────────────────────────────────────────────────────
 cells_html = ""
 for key in LAYOUT:
-    cfg = CELLS[key]
-    # placeholder = formatted zero value
+    cfg         = CELLS[key]
     placeholder = cfg["format"] % 0
     cells_html += f'''
     <div class="cell" data-key="{key}">
@@ -44,20 +40,20 @@ for key in LAYOUT:
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live Single-Column Dashboard</title>
   <style>
     * {{ box-sizing: border-box; }}
     html, body {{
-      margin: 0; width: 100vw; height: 100vh; overflow: hidden;
+      margin: 0; width:100vw; height:100vh; overflow:hidden;
       background: {PAGE_BG};
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                   Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
     .grid {{
       display: grid;
-      width: 100%; height: 100%;
+      width:100%; height:100%;
       grid-template-rows: repeat(4, minmax(0,1fr));
       grid-template-columns: 1fr;
       gap: {CELL_GAP}px;
@@ -77,7 +73,9 @@ html = f"""<!DOCTYPE html>
       line-height: 1;
     }}
     .middle-line {{
-      font-size: 5vw;
+      /* as large as practical: ~60% of its row’s height */
+      font-size: 15vh;
+      max-height: 100%;
       text-align: center;
       line-height: 1;
       font-variant-numeric: tabular-nums;
@@ -97,8 +95,6 @@ html = f"""<!DOCTYPE html>
       cellMap[el.dataset.key] = el;
     }});
     const ws = new WebSocket("ws://" + location.host + "/ws");
-    ws.addEventListener('open',  () => console.log("▶ WS connected"));
-    ws.addEventListener('close', () => console.log("✖ WS disconnected"));
     ws.addEventListener('message', e => {{
       const [key, text] = e.data.split(':');
       const c = cellMap[key];
@@ -109,14 +105,14 @@ html = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-# ── 4) FastAPI app & WebSocket state ────────────────────────────────────────
+# ── 4) FastAPI & WebSocket ──────────────────────────────────────────────────
 app = FastAPI()
 clients: list[WebSocket] = []
 
 def broadcast(key: str, text: str):
-    payload = f"{key}:{text}"
+    msg = f"{key}:{text}"
     for ws in clients.copy():
-        asyncio.create_task(ws.send_text(payload))
+        asyncio.create_task(ws.send_text(msg))
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
@@ -124,7 +120,7 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # ignore keep-alives
+            await ws.receive_text()
     except WebSocketDisconnect:
         clients.remove(ws)
 
@@ -132,29 +128,25 @@ async def ws_endpoint(ws: WebSocket):
 async def get_page():
     return HTMLResponse(html)
 
-# ── 5) UDP listener with plain if/elif updates ─────────────────────────────
+# ── 5) UDP Listener with simple if/elif ────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
-
     class Proto(asyncio.DatagramProtocol):
-        def datagram_received(self, data: bytes, addr):
+        def datagram_received(self, data, addr):
             raw = data.decode().strip()
-            logging.info(f"UDP recv {raw!r} from {addr}")
+            logging.info(f"UDP recv {raw!r}")
             try:
                 msg = pynmea2.parse(raw)
             except pynmea2.ParseError:
                 return
 
-            # your simple if/elif mapping:
             if isinstance(msg, pynmea2.types.talker.VHW):
                 broadcast("a", CELLS["a"]["format"] % msg.water_speed_knots)
                 broadcast("b", CELLS["b"]["format"] % msg.heading_true)
-
             elif isinstance(msg, pynmea2.types.talker.VTG):
                 broadcast("c", CELLS["c"]["format"] % msg.spd_over_grnd_kts)
                 broadcast("d", CELLS["d"]["format"] % msg.mag_track)
-
-            # add more cases as needed...
+            # add more cases here...
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
