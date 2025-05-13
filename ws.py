@@ -49,7 +49,7 @@ def update_ema_and_state(key: str, raw_value: float):
     cell["last_ts"] = now
 
 # ── 2) Shared queue & WebSocket state ───────────────────────────────────────
-message_queue: asyncio.Queue[pynmea2.NMEAMessage] = asyncio.Queue()
+message_queue = asyncio.Queue()
 app = FastAPI()
 clients: list[WebSocket] = []
 
