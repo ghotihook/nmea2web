@@ -94,58 +94,103 @@ for key in SHOW_KEYS:
       <div class="top-line">{cfg["top"]}</div>
       <div class="middle-line">{placeholder}</div>
     </div>'''
-
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live EMA Dashboard</title>
   <style>
     * {{ box-sizing: border-box; }}
-    html,body {{ margin:0; width:100vw; height:100vh; overflow:hidden;
-      background:{PAGE_BG}; font-family:system-ui,sans-serif; }}
+    html, body {{
+      margin: 0; width:100vw; height:100vh; overflow:hidden;
+      background: {PAGE_BG};
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }}
     .grid {{
-      display:grid; width:100%; height:100%;
-      grid-template-rows:repeat({len(SHOW_KEYS)},minmax(0,1fr));
-      gap:{CELL_GAP}px; padding:{CELL_GAP}px;
+      display: grid;
+      width:100%; height:100%;
+      grid-template-rows: repeat({len(SHOW_KEYS)}, minmax(0,1fr));
+      gap: {CELL_GAP}px;
+      padding: {CELL_GAP}px;
     }}
     .cell {{
-      background:{CELL_BG}; border-radius:{CELL_RADIUS}px;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      padding:6px; color:#0f0; user-select:none;
+      background: {CELL_BG};
+      border-radius: {CELL_RADIUS}px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 6px;
+      color: #0f0;
+      user-select: none;
     }}
-    .top-line {{ font-size:2.5vw; text-align:center; margin:4px 0; line-height:1; }}
+    .top-line {{
+      flex: 0 0 25%;       /* reserve 25% of cell height */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }}
     .middle-line {{
-      font-size:15vh; max-height:100%; text-align:center; line-height:1;
-      font-variant-numeric:tabular-nums; font-feature-settings:'tnum';
-      font-weight:bold; white-space:pre;
+      flex: 0 0 50%;       /* reserve 50% of cell height */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum';
+      font-weight: bold;
+      white-space: pre;    /* preserve leading spaces for padding */
     }}
   </style>
 </head>
 <body>
-  <div class="grid">{cells_html}</div>
+  <div class="grid">
+    {cells_html}
+  </div>
   <script>
-  (function(){{
+  // resizeFonts: set font-size so top =25%, middle=50% of cell height
+  function resizeFonts() {{
+    document.querySelectorAll('.cell').forEach(cell => {{
+      const h = cell.clientHeight;
+      const top = cell.querySelector('.top-line');
+      const mid = cell.querySelector('.middle-line');
+      top.style.fontSize    = `${{0.25 * h}}px`;
+      mid.style.fontSize    = `${{0.50 * h}}px`;
+      // line-height = 1 to avoid extra spacing
+      top.style.lineHeight  = '1';
+      mid.style.lineHeight  = '1';
+    }});
+  }}
+
+  ;(function() {{
     const cellMap = {{}};
-    document.querySelectorAll('.cell').forEach(el=>{{ cellMap[el.dataset.key]=el; }});
-    function connect(){{
-      const ws = new WebSocket("ws://"+location.host+"/ws");
+    document.querySelectorAll('.cell').forEach(el => {{
+      cellMap[el.dataset.key] = el;
+    }});
+
+    // WebSocket with auto‐reconnect
+    function connect() {{
+      const ws = new WebSocket("ws://" + location.host + "/ws");
       ws.onopen    = () => console.log("▶ WS open");
       ws.onmessage = e => {{
         const [k,txt] = e.data.split(':');
         const c = cellMap[k];
-        if(c) c.querySelector('.middle-line').textContent = txt;
+        if (c) c.querySelector('.middle-line').textContent = txt;
       }};
-      ws.onclose   = () => setTimeout(connect,1000);
+      ws.onclose   = () => setTimeout(connect, 1000);
       ws.onerror   = () => ws.close();
     }}
     connect();
+
+    // initial + on‐resize
+    window.addEventListener('load', resizeFonts);
+    window.addEventListener('resize', resizeFonts);
   }})();
   </script>
 </body>
 </html>"""
-
 # ── 5) FastAPI endpoints ────────────────────────────────────────────────────
 @app.get("/")
 async def get_page():
