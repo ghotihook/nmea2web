@@ -9,7 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 # ── Logging ────────────────────────────────────────────────────────────────
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(levelname)s: %(message)s")
 
 # ── 1) Cell definitions & EMA state ─────────────────────────────────────────
 EMA_WINDOW = 1.0  # seconds time-constant for EMA
