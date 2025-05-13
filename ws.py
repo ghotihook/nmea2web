@@ -9,25 +9,24 @@ from fastapi.responses import HTMLResponse
 # ── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# ── 1) Grid layout ─────────────────────────────────────────────────────────
-# Each tuple is (cell_key, span_units)
-LAYOUT = [
-    [("a", 2), ("b", 2)],
-    [("c", 4)],
-    [("d", 1), ("e", 1), ("f", 1), ("g", 1)],
-]
-
-# ── 2) Per-cell display config ─────────────────────────────────────────────
-# Python %-format string per cell, e.g. "%0.1fkn", "%0.0f°"
-CELL_DISPLAY = {
-    "a": {"top": "Water Speed",  "format": "%0.1fkn", "bottom": ""},
-    "b": {"top": "True Heading", "format": "%0.0f°",  "bottom": ""},
-    "c": {"top": "Mag Dir",      "format": "%0.0f°",  "bottom": ""},
-    "d": {"top": "Lat",          "format": "%0.5f°",  "bottom": ""},
-    "e": {"top": "Lon",          "format": "%0.5f°",  "bottom": ""},
-    "f": {"top": "SOG",          "format": "%0.1fkn", "bottom": ""},
-    "g": {"top": "COG",          "format": "%0.0f°",  "bottom": ""},
+# ── 1) Central cell configuration ──────────────────────────────────────────
+# Defines span (1/2/4), top label, bottom label, format string for value
+CELLS = {
+    "a": {"span": 2, "top": "Water Speed",  "format": "%0.1fkn", "bottom": ""},
+    "b": {"span": 2, "top": "True Heading", "format": "%0.0f°",  "bottom": ""},
+    "c": {"span": 4, "top": "Mag Dir",      "format": "%0.0f°",  "bottom": ""},
+    "d": {"span": 1, "top": "Lat",          "format": "%0.5f°",  "bottom": ""},
+    "e": {"span": 1, "top": "Lon",          "format": "%0.5f°",  "bottom": ""},
+    "f": {"span": 1, "top": "SOG",          "format": "%0.1fkn", "bottom": ""},
+    "g": {"span": 1, "top": "COG",          "format": "%0.0f°",  "bottom": ""},
 }
+
+# ── 2) Layout: rows of cell keys ───────────────────────────────────────────
+LAYOUT = [
+    ["a", "b"],
+    ["c"],
+    ["d", "e", "f", "g"],
+]
 
 # ── 3) Appearance constants ─────────────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
@@ -35,20 +34,19 @@ CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12  # px
 CELL_RADIUS = 8   # px
 
-# ── 4) Build initial cells HTML ─────────────────────────────────────────────
+# ── 4) Build initial HTML ───────────────────────────────────────────────────
 cells_html = ""
 for row in LAYOUT:
-    for key, span in row:
-        ui = CELL_DISPLAY[key]
-        placeholder = ui["format"] % 0
+    for key in row:
+        cfg = CELLS[key]
+        placeholder = cfg["format"] % 0
         cells_html += f'''
-        <div class="cell span-{span}" data-key="{key}">
-          <div class="top-line">{ui["top"]}</div>
+        <div class="cell span-{cfg["span"]}" data-key="{key}">
+          <div class="top-line">{cfg["top"]}</div>
           <div class="middle-line">{placeholder}</div>
-          <div class="bottom-line">{ui["bottom"]}</div>
+          <div class="bottom-line">{cfg["bottom"]}</div>
         </div>'''
 
-# ── 5) Full HTML template ───────────────────────────────────────────────────
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -111,7 +109,7 @@ html = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-# ── 6) FastAPI app & WebSocket state ────────────────────────────────────────
+# ── 5) FastAPI app & WebSocket state ────────────────────────────────────────
 app = FastAPI()
 clients: list[WebSocket] = []
 
@@ -134,49 +132,40 @@ async def ws_endpoint(ws: WebSocket):
 async def get_page():
     return HTMLResponse(html)
 
-# ── 7) NMEA handler functions ───────────────────────────────────────────────
-def handle_vhw(msg):
-    return [
-        ("a", CELL_DISPLAY["a"]["format"] % msg.water_speed_knots),
-        ("b", CELL_DISPLAY["b"]["format"] % msg.heading_true),
-    ]
-
-def handle_mwd(msg):
-    return [
-        ("c", CELL_DISPLAY["c"]["format"] % msg.direction_magnetic),
-    ]
-
-def handle_vtg(msg):
-    return [
-        ("f", CELL_DISPLAY["f"]["format"] % msg.spd_over_grnd_kts),
-        ("g", CELL_DISPLAY["g"]["format"] % msg.mag_track),
-    ]
-
-# Map NMEA message types to handlers
-HANDLERS = {
-    pynmea2.types.talker.VHW: handle_vhw,
-    pynmea2.types.talker.MWD: handle_mwd,
-    pynmea2.types.talker.VTG: handle_vtg,
-    # add more mappings here...
-}
-
-# ── 8) UDP listener using handler map ───────────────────────────────────────
+# ── 6) UDP listener with simple if‐statements ───────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
+
     class Proto(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
-            logging.info(f"⚡️ UDP recv {raw!r} from {addr}")
+            logging.info(f"UDP recv {raw!r} from {addr}")
             try:
                 msg = pynmea2.parse(raw)
             except pynmea2.ParseError:
                 return
-            for msg_type, handler in HANDLERS.items():
-                if isinstance(msg, msg_type):
-                    for key, text in handler(msg):
-                        broadcast(key, text)
-                    break
 
+            # identify message type via if‐elif
+            if isinstance(msg, pynmea2.types.talker.VHW):
+                # update 'a' and 'b'
+                text_a = CELLS["a"]["format"] % msg.water_speed_knots
+                broadcast("a", text_a)
+                text_b = CELLS["b"]["format"] % msg.heading_true
+                broadcast("b", text_b)
+
+            elif isinstance(msg, pynmea2.types.talker.MWD):
+                text = CELLS["c"]["format"] % msg.direction_magnetic
+                broadcast("c", text)
+
+            elif isinstance(msg, pynmea2.types.talker.VTG):
+                text_f = CELLS["f"]["format"] % msg.spd_over_grnd_kts
+                broadcast("f", text_f)
+                text_g = CELLS["g"]["format"] % msg.mag_track
+                broadcast("g", text_g)
+
+            # extend with more if/elif blocks as needed...
+
+    # bind UDP socket on port 2002
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", 2002))
