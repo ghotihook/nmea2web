@@ -9,18 +9,16 @@ from fastapi.responses import HTMLResponse
 # ── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# ── 1) Cell definitions (no bottom labels) ─────────────────────────────────
+# ── 1) Cell definitions ─────────────────────────────────────────────────────
 CELLS = {
     "a": {"top": "BSP (kt)",     "format": "%0.1f"},
     "b": {"top": "Target (kt)",  "format": "%0.1f"},
     "c": {"top": "TWA",          "format": "%0.0f°"},
-    "d": {"top": "HDG (mag)",          "format": "%0.0f°"},
+    "d": {"top": "HDG (mag)",    "format": "%0.0f°"},
 }
+LAYOUT = ["a", "b", "c", "d"]  # one column, four rows
 
-# Order: one column, four rows
-LAYOUT = ["a", "b", "c", "d"]
-
-# ── 2) Appearance constants ─────────────────────────────────────────────────
+# ── 2) Appearance ──────────────────────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12  # px
@@ -92,12 +90,27 @@ html = f"""<!DOCTYPE html>
     document.querySelectorAll('.cell').forEach(el => {{
       cellMap[el.dataset.key] = el;
     }});
-    const ws = new WebSocket("ws://" + location.host + "/ws");
-    ws.addEventListener('message', e => {{
-      const [key, text] = e.data.split(':');
-      const c = cellMap[key];
-      if (c) c.querySelector('.middle-line').textContent = text;
-    }});
+
+    let ws;
+    function connect() {{
+      ws = new WebSocket("ws://" + location.host + "/ws");
+      ws.addEventListener('open', () => console.log("▶ WS connected"));
+      ws.addEventListener('message', e => {{
+        const [key, text] = e.data.split(':');
+        const c = cellMap[key];
+        if (c) c.querySelector('.middle-line').textContent = text;
+      }});
+      ws.addEventListener('close', () => {{
+        console.log("✖ WS disconnected, retrying in 1s");
+        setTimeout(connect, 1000);
+      }});
+      ws.addEventListener('error', err => {{
+        console.warn("WS error:", err);
+        ws.close();
+      }});
+    }}
+
+    connect();
   }})();
   </script>
 </body>
@@ -129,7 +142,6 @@ async def get_page():
 # ── 5) UDP listener with simple if/elif routing ───────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
-
     class Proto(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
@@ -145,10 +157,8 @@ async def udp_listener():
                 broadcast("d", CELLS["d"]["format"] % msg.heading_true)
 
             elif isinstance(msg, pynmea2.types.talker.VTG):
-                broadcast("d", CELLS["d"]["format"] % msg.spd_over_grnd_kts)
+                broadcast("c", CELLS["c"]["format"] % msg.spd_over_grnd_kts)
                 broadcast("d", CELLS["d"]["format"] % msg.mag_track)
-
-            # add more cases if needed...
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
