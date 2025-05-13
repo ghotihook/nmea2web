@@ -57,8 +57,10 @@ Open your browser to `http://<host>:<web-port>/`.
 ```
 
 
-### Kiosk
-3rd party apps like Kiosker on ipad work well
+### ipad/Android
+- ipad
+-- Kiosker
+
 
 
 
