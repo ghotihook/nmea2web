@@ -2,9 +2,9 @@
 
 A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, applies a small-time-constant exponential moving average to each data field, and pushes live updates to a single-column, multi-row browser dashboard.
 
----
 
-## ── Features
+
+##  Features
 
 - **UDP listener** on configurable port, accepts raw NMEA datagrams  
 - **Processor** coroutine with a simple `if isinstance(msg, …)` chain  
@@ -13,7 +13,7 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 - **HTML+JS client**: auto-reconnect, logs events, updates only selected cells  
 - **Command-line args** to control ports, log level, smoothing window, and displayed metrics
 
----
+
 
 ## Requirements / Dependencies
 
