@@ -1,0 +1,9 @@
+{
+  "name": "NMEA Dashboard",
+  "short_name": "NMEA_Dash",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#141f30",
+  "theme_color": "#141f30"
+}
