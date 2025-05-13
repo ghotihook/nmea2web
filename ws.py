@@ -56,54 +56,70 @@ for row in LAYOUT:
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
+
+
 html = f"""
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Live Grid</title>
   <style>
+    /* Make the html/body fill the viewport */
     html, body {{
       margin: 0;
       padding: {CELL_GAP}px;
-      height: 100%;
+      height: 100vh;
       background: {PAGE_BG};
       box-sizing: border-box;
       font-family: system-ui, -apple-system, BlinkMacSystemFont,
                    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
+
+    /* 4 columns, rows all equal height */
     .grid {{
       display: grid;
       grid-template-columns: repeat(4, 1fr);
+      grid-auto-rows: 1fr;      /* each row takes equal share */
       gap: {CELL_GAP}px;
       height: 100%;
     }}
+
+    /* Each cell flex-centers its content */
     .cell {{
       background: {CELL_BG};
       border-radius: {CELL_RADIUS}px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      align-items: center;
+      justify-content: center;
       padding: 4px;
       color: #0f0;
       user-select: none;
     }}
+
+    /* Top & bottom labels */
     .top-line, .bottom-line {{
-      text-align: center;
       font-size: 2.5vw;
+      text-align: center;
       line-height: 1;
       margin: 2px 0;
     }}
+
+    /* Middle, monospace for padding preservation */
     .middle-line {{
-      text-align: center;
-      white-space: pre;       /* preserve spaces */
-      font-family: monospace; /* fixed-width for padding */
+      font-family: monospace;
+      white-space: pre;
       font-size: 5vw;
+      text-align: center;
       line-height: 1;
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum';
       font-weight: bold;
     }}
+
+    /* Span helpers */
     .span-1 {{ grid-column: span 1; }}
     .span-2 {{ grid-column: span 2; }}
     .span-4 {{ grid-column: span 4; }}
@@ -114,27 +130,25 @@ html = f"""
     {cells_html}
   </div>
   <script>
-    // map cellKey → cell element
     const cellMap = Object.fromEntries(
       Array.from(document.querySelectorAll('.cell'))
            .map(el => [el.dataset.key, el])
     );
-
     const ws = new WebSocket("ws://" + location.host + "/ws");
-    ws.onopen    = () => console.log("▶ WS connected");
-    ws.onclose   = () => console.log("✖ WS disconnected");
+    ws.onopen = () => console.log("▶ WS connected");
+    ws.onclose = () => console.log("✖ WS disconnected");
     ws.onmessage = e => {{
       const [key, raw] = e.data.split(':');
       const cell = cellMap[key];
-      if (cell) {{
-        // raw already includes leading/trailing spaces
-        cell.querySelector('.middle-line').textContent = raw;
-      }}
+      if (cell) cell.querySelector('.middle-line').textContent = raw;
     }};
   </script>
 </body>
 </html>
 """
+
+
+
 
 # ── FastAPI App ─────────────────────────────────────────────────────────────
 app = FastAPI()
