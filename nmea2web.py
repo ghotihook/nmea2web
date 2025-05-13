@@ -21,7 +21,11 @@ CELLS = {
     "AWA": {"top":"AWA",      "format":"%0.0f°","ema":0.0, "last_ts":None},
     "AWS": {"top":"AWS (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
     "HDG": {"top":"HDG (mag)","format":"%0.0f°","ema":0.0, "last_ts":None},
+    "SOG": {"top":"SOG (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
+    "COG": {"top":"COG",      "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "TWD": {"top":"TWD",      "format":"%0.0f°","ema":0.0, "last_ts":None},
 }
+
 
 def update_ema_and_state(key: str, raw_value: float):
     """EMA update in-place on CELLS[key]."""
@@ -185,6 +189,14 @@ async def processor():
         elif isinstance(msg, pynmea2.types.talker.HDG):
             hdg = float(msg.heading)
             update_ema_and_state("HDG", hdg); broadcast("HDG")
+
+        elif isinstance(msg, pynmea2.types.talker.VTG):
+            update_ema_and_state("SOG", float(msg.spd_over_grnd_kts)); broadcast("SOG")
+            update_ema_and_state("COG", float(msg.mag_track)); broadcast("COG")
+
+        elif isinstance(msg, pynmea2.types.talker.MWD):
+            update_ema_and_state("TWD", float(msg.direction_magnetic)); broadcast("TWD")
+
 
 @app.on_event("startup")
 async def startup():
