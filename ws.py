@@ -26,7 +26,7 @@ LAYOUT = [
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
     "b": ("VHW", "heading_true"),
-    # add others as needed...
+    # extend as needed…
 }
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
@@ -34,8 +34,8 @@ for key, (stype, attr) in CELL_NMEA_CONFIG.items():
 
 # ── Cell static labels/units/bottom text ────────────────────────────────────
 CELL_DISPLAY = {
-    "a": {"top": "Water Speed",   "unit": "kn", "bottom": ""},
-    "b": {"top": "True Heading",  "unit": "°T", "bottom": ""},
+    "a": {"top": "Water Speed",   "unit": "kn", "bottom": "ok"},
+    "b": {"top": "True Heading",  "unit": "°T", "bottom": "test"},
     "c": {"top": "Cell C",        "unit": "",   "bottom": ""},
     "d": {"top": "Cell D",        "unit": "",   "bottom": ""},
     "e": {"top": "Cell E",        "unit": "",   "bottom": ""},
@@ -49,7 +49,7 @@ CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12   # px
 CELL_RADIUS = 8    # px
 
-# ── Build the HTML with 4 lines per cell ───────────────────────────────────
+# ── Build the HTML (with sign/value/unit middle line) ──────────────────────
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
@@ -57,8 +57,11 @@ for row in LAYOUT:
         cells_html += f'''
         <div class="cell span-{span}" data-key="{key}">
           <div class="top-line">{ui["top"]}</div>
-          <div class="value-line">–</div>
-          <div class="unit-line">{ui["unit"]}</div>
+          <div class="middle-line">
+            <div class="sign-line"></div>
+            <div class="value-line">–</div>
+            <div class="unit-line">{ui["unit"]}</div>
+          </div>
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
@@ -70,8 +73,11 @@ html = f"""
   <title>Live Grid</title>
   <style>
     html, body {{
-      margin: 0; padding: {CELL_GAP}px; height: 100%; 
-      background: {PAGE_BG}; box-sizing: border-box;
+      margin: 0;
+      padding: {CELL_GAP}px;
+      height: 100%;
+      background: {PAGE_BG};
+      box-sizing: border-box;
       font-family: system-ui, -apple-system, BlinkMacSystemFont,
                    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
@@ -90,17 +96,34 @@ html = f"""
       justify-content: center;
       color: #0f0;
       user-select: none;
+      padding: 4px;
     }}
-    .top-line, .unit-line, .bottom-line {{
-      font-size: 2vw;      /* bumped up */
-      margin: 3px 0;
+    .top-line, .bottom-line {{
+      font-size: 2.5vw;
+      margin: 2px 0;
+    }}
+    .middle-line {{
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      width: 100%;
+    }}
+    .sign-line {{
+      text-align: right;
+      font-size: 5vw;
+      padding-right: 0.2ch;
     }}
     .value-line {{
-      font-size: 5vw;      /* much larger */
-      margin: 3px 0;
+      text-align: center;
+      font-size: 5vw;
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum';
       font-weight: bold;
+    }}
+    .unit-line {{
+      text-align: left;
+      font-size: 3vw;
+      padding-left: 0.2ch;
     }}
     .span-1 {{ grid-column: span 1; }}
     .span-2 {{ grid-column: span 2; }}
@@ -112,19 +135,24 @@ html = f"""
     {cells_html}
   </div>
   <script>
+    // build map key→cellElem
     const cellMap = Object.fromEntries(
       Array.from(document.querySelectorAll('.cell'))
            .map(el => [el.dataset.key, el])
     );
+
     const ws = new WebSocket(`ws://${{location.host}}/ws`);
     ws.onopen  = () => console.log("▶ WS connected");
     ws.onclose = () => console.log("✖ WS disconnected");
     ws.onmessage = e => {{
-      const [key, val] = e.data.split(":");
+      const [key, raw] = e.data.split(":");
       const cell = cellMap[key];
-      if (cell) {{
-        cell.querySelector('.value-line').textContent = val;
-      }}
+      if (!cell) return;
+      // split sign from numeric
+      const sign = raw.startsWith('-') ? '-' : '';
+      const num  = sign ? raw.slice(1) : raw;
+      cell.querySelector('.sign-line').textContent = sign;
+      cell.querySelector('.value-line').textContent = num;
     }};
   </script>
 </body>
@@ -145,7 +173,7 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()
+            await ws.receive_text()  # ignore keep-alives
     except WebSocketDisconnect:
         clients.remove(ws)
 
