@@ -84,9 +84,7 @@ async def udp_listener():
     # IPv4 with reuse
     await loop.create_datagram_endpoint(
         lambda: UDPProtocol(),
-        local_addr=("0.0.0.0", 9999),
-        reuse_address=True,    # sets SO_REUSEADDR
-        reuse_port=True,       # sets SO_REUSEPORT (Unix only)
+        local_addr=("0.0.0.0", 9999)
     )
 
     # (Optional) IPv6 dual-stack with reuse
@@ -102,7 +100,7 @@ async def udp_listener():
         logging.warning(f"Could not bind IPv6 UDP socket: {e}")
 
 
-        
+
 @app.on_event("startup")
 async def on_startup():
     # fire-and-forget UDP listener
@@ -112,9 +110,8 @@ async def on_startup():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        loop="asyncio",     # ← force the stdlib asyncio loop
-        reload=False,
+        app, 
+        host="0.0.0.0", 
+        port=8000, 
+        reload=False  # disable auto-reload so `python ws.py` stays in foreground
     )
