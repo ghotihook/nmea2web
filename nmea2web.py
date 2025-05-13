@@ -121,7 +121,7 @@ html = f"""<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: center;
       padding: 6px;
       color: #0f0;
       user-select: none;
