@@ -13,9 +13,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 # Exactly four cells in a single column
 CELLS = {
     "a": {"top": "BSP (kt)",     "format": "%0.1f"},
-    "b": {"top": "Target (kt)",  "format": "%0.1f"},
-    "c": {"top": "TWA",          "format": "%0.0f°"},
-    "d": {"top": "HDG (mag)",    "format": "%0.0f°"},
+    "b": {"top": "TWA",          "format": "%0.0f°"},
+    "c": {"top": "HDG (mag)",    "format": "%0.0f°"},
 }
 
 # ── 2) Appearance constants ─────────────────────────────────────────────────
@@ -151,12 +150,10 @@ async def udp_listener():
 
             if isinstance(msg, pynmea2.types.talker.VHW):
                 broadcast("a", CELLS["a"]["format"] % msg.water_speed_knots)
-                broadcast("b", CELLS["b"]["format"] % msg.water_speed_knots)
-                broadcast("d", CELLS["d"]["format"] % msg.heading_true)
+                broadcast("c", CELLS["c"]["format"] % msg.heading_true)
 
             elif isinstance(msg, pynmea2.types.talker.VTG):
-                broadcast("c", CELLS["c"]["format"] % msg.spd_over_grnd_kts)
-                broadcast("d", CELLS["d"]["format"] % msg.mag_track)
+                broadcast("b", CELLS["b"]["format"] % msg.mag_track)
 
             # add more cases if needed...
 
