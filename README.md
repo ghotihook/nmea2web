@@ -18,10 +18,10 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 ## ── Requirements
 
 - Python 3.8+  
-- `fastapi`, `uvicorn`, `pynmea2`
+- `fastapi`, `uvicorn[standard]`, `pynmea2`
 
 ```bash
-pip install fastapi uvicorn pynmea2
+pip install fastapi uvicorn[standard] pynmea2
 ```
 
 ---
@@ -33,16 +33,19 @@ pip install fastapi uvicorn pynmea2
 3. **Run** the server with any combination of:
 
    ```bash
-   python nmea2web.py \
-     --udp-port 2002 \
-     --web-port 8000 \
-     --log-level INFO \
-     --ema-smoothing-window 2.0 \
-     --display-data BSP TWA HDG
+   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level INFO --ema-smoothing-window 2.0 --display-data BSP TWA HDG
    ```
 
 4. Open your browser to `http://<host>:<web-port>/`.
 
+
+## -- Chrome Kiosk Mode - Mac 
+```open -a "Google Chrome" --args \
+  --kiosk http://localhost:8000 \
+  --incognito \
+  --no-first-run \
+  --noerrdialogs \
+  --disable-infobars```
 ---
 
 ## ── Command-Line Arguments
