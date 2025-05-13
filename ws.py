@@ -71,10 +71,10 @@ html = f"""
       --cell-bg: {CELL_BG};
       --cell-gap: {CELL_GAP}px;
       --cell-radius: {CELL_RADIUS}px;
-      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont,
+                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
 
-    /* Fill the viewport exactly */
     html, body {{
       margin: 0;
       height: 100vh;
@@ -84,11 +84,11 @@ html = f"""
       font-family: var(--font-sans);
     }}
 
-    /* Grid container now holds the padding */
     .grid {{
       display: grid;
       grid-template-columns: repeat(4,1fr);
-      grid-auto-rows: 1fr;
+      /* allow rows to shrink below their content if needed */
+      grid-auto-rows: minmax(0, 1fr);
       gap: var(--cell-gap);
       padding: var(--cell-gap);
       box-sizing: border-box;
@@ -141,20 +141,18 @@ html = f"""
       cellMap[el.dataset.key] = el;
     }});
     const ws = new WebSocket("ws://" + location.host + "/ws");
-    ws.addEventListener('open',  () => console.log("▶ WS connected"));
-    ws.addEventListener('close', () => console.log("✖ WS disconnected"));
     ws.addEventListener('message', ({{ data }}) => {{
       const [key, padded] = data.split(':');
       const cell = cellMap[key];
-      if (cell) {{
-        cell.querySelector('.middle-line').textContent = padded;
-      }}
+      if (cell) cell.querySelector('.middle-line').textContent = padded;
     }});
   }})();
   </script>
 </body>
 </html>
 """
+
+
 
 # ── FastAPI app & endpoints ─────────────────────────────────────────────────
 app = FastAPI()
