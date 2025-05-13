@@ -10,15 +10,15 @@ from fastapi.responses import HTMLResponse
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # ── 1) Cell definitions ─────────────────────────────────────────────────────
+# Exactly four cells in a single column
 CELLS = {
     "a": {"top": "BSP (kt)",     "format": "%0.1f"},
     "b": {"top": "Target (kt)",  "format": "%0.1f"},
     "c": {"top": "TWA",          "format": "%0.0f°"},
     "d": {"top": "HDG (mag)",    "format": "%0.0f°"},
 }
-LAYOUT = ["a", "b", "c", "d"]  # one column, four rows
 
-# ── 2) Appearance ──────────────────────────────────────────────────────────
+# ── 2) Appearance constants ─────────────────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12  # px
@@ -26,8 +26,7 @@ CELL_RADIUS = 8   # px
 
 # ── 3) Build the HTML page ────────────────────────────────────────────────
 cells_html = ""
-for key in LAYOUT:
-    cfg = CELLS[key]
+for key, cfg in CELLS.items():
     placeholder = cfg["format"] % 0
     cells_html += f'''
     <div class="cell" data-key="{key}">
@@ -52,7 +51,7 @@ html = f"""<!DOCTYPE html>
     .grid {{
       display: grid;
       width:100%; height:100%;
-      grid-template-rows: repeat(4, minmax(0,1fr));
+      grid-template-rows: repeat({len(CELLS)}, minmax(0,1fr));
       gap: {CELL_GAP}px;
       padding: {CELL_GAP}px;
     }}
@@ -70,7 +69,7 @@ html = f"""<!DOCTYPE html>
       line-height: 1;
     }}
     .middle-line {{
-      font-size: 15vh;       /* large as practical */
+      font-size: 15vh;       /* as large as practical */
       max-height: 100%;
       text-align: center;
       line-height: 1;
@@ -94,7 +93,7 @@ html = f"""<!DOCTYPE html>
     let ws;
     function connect() {{
       ws = new WebSocket("ws://" + location.host + "/ws");
-      ws.addEventListener('open', () => console.log("▶ WS connected"));
+      ws.addEventListener('open',  () => console.log("▶ WS connected"));
       ws.addEventListener('message', e => {{
         const [key, text] = e.data.split(':');
         const c = cellMap[key];
@@ -109,7 +108,6 @@ html = f"""<!DOCTYPE html>
         ws.close();
       }});
     }}
-
     connect();
   }})();
   </script>
@@ -145,7 +143,7 @@ async def udp_listener():
     class Proto(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
-            logging.info(f"UDP recv {raw!r}")
+            logging.info(f"UDP recv {raw!r} from {addr}")
             try:
                 msg = pynmea2.parse(raw)
             except pynmea2.ParseError:
@@ -159,6 +157,8 @@ async def udp_listener():
             elif isinstance(msg, pynmea2.types.talker.VTG):
                 broadcast("c", CELLS["c"]["format"] % msg.spd_over_grnd_kts)
                 broadcast("d", CELLS["d"]["format"] % msg.mag_track)
+
+            # add more cases if needed...
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
