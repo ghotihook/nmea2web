@@ -12,7 +12,7 @@ logging.basicConfig(
 
 # ── Config ─────────────────────────────────────────────────────────────────
 GRID_ROWS   = 4   # ← number of rows
-GRID_COLS   = 6   # ← number of columns
+GRID_COLS   = 1   # ← number of columns
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12  # px between cells & screen edge
