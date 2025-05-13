@@ -175,7 +175,7 @@ async def processor():
             update_ema_and_state("TWA", twa); broadcast("TWA")
 
         elif isinstance(msg, pynmea2.types.talker.HDG):
-            hdg = float(msg.heading_true)
+            hdg = float(msg.heading)
             update_ema_and_state("HDG", hdg); broadcast("HDG")
 
 @app.on_event("startup")
