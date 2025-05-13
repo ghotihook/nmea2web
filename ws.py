@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import socket
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
@@ -10,19 +11,28 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
 )
 
-# ── Config ─────────────────────────────────────────────────────────────────
-GRID_ROWS   = 4   # ← number of rows
-GRID_COLS   = 1   # ← number of columns
+# ── Configurable Layout ────────────────────────────────────────────────────
+# Each tuple is (cellKey, spanUnits), where spanUnits must be 1, 2 or 4
+LAYOUT = [
+    [("a", 4)],                        # row 1: a spans all 4 cols
+    [("b", 1), ("c", 1), ("d", 2)],    # row 2: b=1/4, c=1/4, d=2/4
+    [("e", 2), ("f", 2)],              # row 3: two half-widths
+    [("g", 1), ("h", 1), ("i", 1), ("j", 1)],  # row 4: four quarter-widths
+]
+
+# Appearance
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
-CELL_GAP    = 12  # px between cells & screen edge
-CELL_RADIUS = 8   # px corner radius
+CELL_GAP    = 12   # px
+CELL_RADIUS = 8    # px corner radius
 
-# ── App & State ───────────────────────────────────────────────────────────
-app = FastAPI()
-clients: list[WebSocket] = []
+# ── Build HTML ─────────────────────────────────────────────────────────────
+# flatten LAYOUT into a single string of <div> cells
+cells_html = "".join(
+    f'<div class="cell span-{span}" data-key="{key}">–</div>'
+    for row in LAYOUT for key, span in row
+)
 
-# ── HTML Page ─────────────────────────────────────────────────────────────
 html = """
 <!DOCTYPE html>
 <html>
@@ -30,62 +40,56 @@ html = """
   <meta charset="utf-8"/>
   <title>Live Grid</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: %dpx;
-      height: 100%%;
-      background: %s;
-      box-sizing: border-box;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(%d, 1fr);
-      grid-auto-rows: minmax(60px, auto);
-      gap: %dpx;
-      height: 100%%;
-    }
-    .cell {
-      background: %s;
-      border-radius: %dpx;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 2.5vw;
-      color: #0f0;
-      user-select: none;
-    }
+    html, body {{ margin: 0; padding: {CELL_GAP}px; height: 100%; background: {PAGE_BG}; box-sizing: border-box; }}
+    .grid {{ 
+      display: grid; 
+      grid-template-columns: repeat(4, 1fr); 
+      gap: {CELL_GAP}px; 
+      height: 100%; 
+    }}
+    .cell {{ 
+      background: {CELL_BG}; 
+      border-radius: {CELL_RADIUS}px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 2.5vw; 
+      color: #0f0; 
+      user-select: none; 
+    }}
+    .span-1 {{ grid-column: span 1; }}
+    .span-2 {{ grid-column: span 2; }}
+    .span-4 {{ grid-column: span 4; }}
   </style>
 </head>
 <body>
   <div class="grid">
-    <!-- cells will be injected by Python -->
-    %s
+    {cells_html}
   </div>
   <script>
-    const cells = Array.from(document.querySelectorAll(".cell"));
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    // build a map key→cellElement
+    const cellMap = Object.fromEntries(
+      Array.from(document.querySelectorAll('.cell'))
+           .map(el => [el.dataset.key, el])
+    );
+    // open WS
+    const ws = new WebSocket(`ws://${{location.host}}/ws`);
     ws.onopen = () => console.log("▶ WS connected");
     ws.onclose = () => console.log("✖ WS disconnected");
-    ws.onmessage = e => {
-      // incoming format "idx:value"
-      const [rawIdx, rawVal] = e.data.split(":");
-      const idx = Number(rawIdx);
-      if (!isNaN(idx) && cells[idx]) {
-        cells[idx].textContent = rawVal;
-      }
-    };
+    // on "key:value", update the matching cell
+    ws.onmessage = e => {{
+      const [key, val] = e.data.split(":");
+      if (cellMap[key]) cellMap[key].textContent = val;
+    }};
   </script>
 </body>
 </html>
-""" % (
-    CELL_GAP, PAGE_BG,
-    GRID_COLS,
-    CELL_GAP,
-    CELL_BG, CELL_RADIUS,
-    "".join(f'<div class="cell" id="cell-{i}">–</div>' for i in range(GRID_ROWS * GRID_COLS))
-)
+"""
 
-# ── Routes ─────────────────────────────────────────────────────────────────
+# ── FastAPI App ────────────────────────────────────────────────────────────
+app = FastAPI()
+clients: list[WebSocket] = []
+
 @app.get("/")
 async def get_page():
     return HTMLResponse(html)
@@ -96,11 +100,11 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # keep-alive pings
+            await ws.receive_text()  # ignore, just keep alive
     except WebSocketDisconnect:
         clients.remove(ws)
 
-# ── UDP Listener ───────────────────────────────────────────────────────────
+# ── UDP → WebSocket Bridge ─────────────────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
 
@@ -111,7 +115,7 @@ async def udp_listener():
             for ws in clients.copy():
                 asyncio.create_task(ws.send_text(text))
 
-    # IPv4 only
+    # manually create IPv4 socket with SO_REUSEADDR
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", 9999))
