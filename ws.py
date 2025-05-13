@@ -57,7 +57,7 @@ for row in LAYOUT:
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
-# ── Full HTML with doubled braces for literals ──────────────────────────────
+# ── Full HTML with proper scaling ────────────────────────────────────────────
 html = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -73,21 +73,28 @@ html = f"""
       --cell-radius: {CELL_RADIUS}px;
       --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
+
+    /* Fill the viewport exactly */
     html, body {{
       margin: 0;
-      padding: var(--cell-gap);
       height: 100vh;
+    }}
+    body {{
       background: var(--page-bg);
-      box-sizing: border-box;
       font-family: var(--font-sans);
     }}
+
+    /* Grid container now holds the padding */
     .grid {{
       display: grid;
       grid-template-columns: repeat(4,1fr);
       grid-auto-rows: 1fr;
       gap: var(--cell-gap);
+      padding: var(--cell-gap);
+      box-sizing: border-box;
       height: 100%;
     }}
+
     .cell {{
       background: var(--cell-bg);
       border-radius: var(--cell-radius);
@@ -99,12 +106,14 @@ html = f"""
       color: #0f0;
       user-select: none;
     }}
+
     .top-line, .bottom-line {{
       font-size: 2.5vw;
       text-align: center;
       margin: 4px 0;
       line-height: 1;
     }}
+
     .middle-line {{
       font-family: monospace;
       white-space: pre;
@@ -115,6 +124,7 @@ html = f"""
       font-feature-settings: 'tnum';
       font-weight: bold;
     }}
+
     .span-1 {{ grid-column: span 1; }}
     .span-2 {{ grid-column: span 2; }}
     .span-4 {{ grid-column: span 4; }}
@@ -126,7 +136,7 @@ html = f"""
   </div>
   <script>
   (function() {{
-    const cellMap = {{}};  
+    const cellMap = {{}};
     document.querySelectorAll('.cell').forEach(el => {{
       cellMap[el.dataset.key] = el;
     }});
@@ -160,13 +170,14 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            await ws.receive_text()  # ignore keep-alives
+            await ws.receive_text()  # ignore keep-alive
     except WebSocketDisconnect:
         clients.remove(ws)
 
 # ── UDP → WebSocket bridge ──────────────────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
+
     class Proto(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr):
             raw = data.decode().strip()
@@ -175,16 +186,21 @@ async def udp_listener():
                 msg = pynmea2.parse(raw)
             except pynmea2.ParseError:
                 return
+
             for key, attr in NMEA_TO_CELLS.get(msg.sentence_type, []):
                 val = getattr(msg, attr, None)
                 if val is None:
                     continue
+
                 unit = CELL_DISPLAY[key]["unit"]
                 core = f"{val}{unit}"
+
                 if core.startswith("-"):
                     core += " "
+
                 core = " " * len(unit) + core
                 middle = core.center(MIDDLE_WIDTH)
+
                 payload = f"{key}:{middle}"
                 for ws in clients.copy():
                     asyncio.create_task(ws.send_text(payload))
