@@ -112,8 +112,9 @@ async def on_startup():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=8000, 
-        reload=False  # disable auto-reload so `python ws.py` stays in foreground
+        app,
+        host="0.0.0.0",
+        port=8000,
+        loop="asyncio",     # ← force the stdlib asyncio loop
+        reload=False,
     )
