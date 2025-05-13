@@ -28,14 +28,14 @@ args = parser.parse_args()
 # ── Validate display-data keys ───────────────────────────────────────────────
 CELLS = {
     "BSP": {"top":"BSP (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "TWA": {"top":"TWA",         "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "HDG": {"top":"HDG (mag)",   "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "TWA": {"top":"TWA",         "format":" %0.0f°","ema":0.0, "last_ts":None},
+    "HDG": {"top":"HDG (mag)",   "format":" %0.0f°","ema":0.0, "last_ts":None},
     "TWS": {"top":"TWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "AWA": {"top":"AWA",         "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "AWA": {"top":"AWA",         "format":" %0.0f°","ema":0.0, "last_ts":None},
     "AWS": {"top":"AWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
     "SOG": {"top":"SOG (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "COG": {"top":"COG",         "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "TWD": {"top":"TWD",         "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "COG": {"top":"COG",         "format":" %0.0f°","ema":0.0, "last_ts":None},
+    "TWD": {"top":"TWD",         "format":" %0.0f°","ema":0.0, "last_ts":None},
 }
 
 invalid = [k for k in args.display_data if k not in CELLS]
@@ -156,8 +156,8 @@ html = f"""<!DOCTYPE html>
       const h = cell.clientHeight;
       const top = cell.querySelector('.top-line');
       const mid = cell.querySelector('.middle-line');
-      top.style.fontSize    = `${{0.20 * h}}px`;
-      mid.style.fontSize    = `${{0.60 * h}}px`;
+      top.style.fontSize    = `${{0.15 * h}}px`;
+      mid.style.fontSize    = `${{0.65 * h}}px`;
       // line-height = 1 to avoid extra spacing
       top.style.lineHeight  = '1';
       mid.style.lineHeight  = '1';
