@@ -170,9 +170,9 @@ async def processor():
             bsp = float(msg.water_speed_knots)
             update_ema_and_state("BSP", bsp); broadcast("BSP")
 
-        elif isinstance(msg, pynmea2.types.talker.VTG):
-            twa = float(msg.mag_track)
-            update_ema_and_state("TWA", twa); broadcast("TWA")
+        elif isinstance(msg, pynmea2.types.talker.MWV):
+            angle_180 = (float(msg.wind_angle) + 180) % 360 - 180
+            update_ema_and_state("TWA", angle_180); broadcast("TWA")
 
         elif isinstance(msg, pynmea2.types.talker.HDG):
             hdg = float(msg.heading)
