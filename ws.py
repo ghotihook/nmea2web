@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # ── 1) Cell definitions & EMA state ─────────────────────────────────────────
-EMA_WINDOW = 5.0  # seconds time-constant for EMA
+EMA_WINDOW = 1.0  # seconds time-constant for EMA
 
 CELLS = {
     "BSP": {"top":"BSP (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
