@@ -1,28 +1,34 @@
-import asyncio, logging, socket
+import asyncio
+import logging
+import socket
+
 import pynmea2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+)
 
-# ── Layout ────────────────────────────────────────────────────────────────
+# Layout: 4-column grid
 LAYOUT = [
     [("a", 2), ("b", 2)],
     [("c", 4)],
     [("d", 1), ("e", 1), ("f", 1), ("g", 1)],
 ]
 
-# ── NMEA → Cell mapping ─────────────────────────────────────────────────────
+# NMEA → Cell mapping
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
     "b": ("VHW", "heading_true"),
-    # etc...
+    # ... add c–g as needed
 }
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
     NMEA_TO_CELLS.setdefault(stype, []).append((key, attr))
 
-# ── Cell labels/units/bottom ───────────────────────────────────────────────
+# Cell labels/units/bottom
 CELL_DISPLAY = {
     "a": {"top": "Water Speed",  "unit": "kn", "bottom": ""},
     "b": {"top": "True Heading", "unit": "°T","bottom": ""},
@@ -36,7 +42,7 @@ CELL_DISPLAY = {
 PAGE_BG, CELL_BG = "rgb(20,32,48)", "rgb(46,50,69)"
 CELL_GAP, CELL_RADIUS = 12, 8
 
-# ── Build HTML ──────────────────────────────────────────────────────────────
+# Build HTML
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
@@ -53,23 +59,24 @@ html = f"""
 <html>
 <head><meta charset="utf-8"/><title>Live Grid</title>
   <style>
-    html, body {{margin:0;padding:{CELL_GAP}px;height:100%;background:{PAGE_BG};}}
-    .grid {{display:grid;grid-template-columns:repeat(4,1fr);gap:{CELL_GAP}px;height:100%;}}
+    html, body {{ margin:0; padding:{CELL_GAP}px; height:100%; background:{PAGE_BG}; }}
+    .grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:{CELL_GAP}px; height:100%; }}
     .cell {{
-      background:{CELL_BG};border-radius:{CELL_RADIUS}px;
-      display:flex;flex-direction:column;justify-content:space-around;
-      padding:4px;color:#0f0;user-select:none;
+      background:{CELL_BG}; border-radius:{CELL_RADIUS}px;
+      display:flex; flex-direction:column; justify-content:space-around;
+      padding:4px; color:#0f0; user-select:none;
     }}
     .top-line, .bottom-line {{
-      text-align:center;font-size:2.5vw;line-height:1;
+      text-align:center; font-size:2.5vw; line-height:1;
     }}
     .middle-line {{
-      text-align:center;font-size:5vw;line-height:1;
-      font-variant-numeric:tabular-nums;font-feature-settings:'tnum';font-weight:bold;
+      text-align:center; font-size:5vw; line-height:1;
+      font-variant-numeric:tabular-nums;
+      font-feature-settings:'tnum'; font-weight:bold;
     }}
-    .span-1 {{grid-column:span 1;}}
-    .span-2 {{grid-column:span 2;}}
-    .span-4 {{grid-column:span 4;}}
+    .span-1 {{ grid-column:span 1; }}
+    .span-2 {{ grid-column:span 2; }}
+    .span-4 {{ grid-column:span 4; }}
   </style>
 </head>
 <body>
@@ -79,12 +86,15 @@ html = f"""
       Array.from(document.querySelectorAll('.cell'))
            .map(el => [el.dataset.key, el])
     );
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    ws.onmessage = e => {{
+    // use string concat instead of backticks inside f-string
+    const ws = new WebSocket("ws://" + location.host + "/ws");
+    ws.onopen = () => console.log("▶ WS connected");
+    ws.onclose = () => console.log("✖ WS disconnected");
+    ws.onmessage = e => {
       const [key, raw] = e.data.split(':');
       const cell = cellMap[key];
       if (cell) cell.querySelector('.middle-line').textContent = raw;
-    }};
+    };
   </script>
 </body>
 </html>
@@ -94,24 +104,30 @@ app = FastAPI()
 clients: list[WebSocket] = []
 
 @app.get("/")
-async def page(): return HTMLResponse(html)
+async def page():
+    return HTMLResponse(html)
 
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
-    await ws.accept(); clients.append(ws)
+    await ws.accept()
+    clients.append(ws)
     try:
-        while True: await ws.receive_text()
+        while True:
+            await ws.receive_text()
     except WebSocketDisconnect:
         clients.remove(ws)
 
 async def udp_listener():
     loop = asyncio.get_running_loop()
+
     class Proto(asyncio.DatagramProtocol):
         def datagram_received(self, data, addr):
             raw = data.decode().strip()
-            logging.info(f"UDP recv {raw!r}")
-            try: msg = pynmea2.parse(raw)
-            except: return
+            logging.info(f"⚡️ UDP recv {raw!r} from {addr}")
+            try:
+                msg = pynmea2.parse(raw)
+            except pynmea2.ParseError:
+                return
             for key, attr in NMEA_TO_CELLS.get(msg.sentence_type, []):
                 val = getattr(msg, attr, None)
                 if val is not None:
@@ -121,12 +137,13 @@ async def udp_listener():
                         asyncio.create_task(ws.send_text(text))
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
-    sock.bind(("0.0.0.0",2002))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("0.0.0.0", 2002))
     await loop.create_datagram_endpoint(lambda: Proto(), sock=sock)
 
 @app.on_event("startup")
-async def startup(): asyncio.create_task(udp_listener())
+async def startup():
+    asyncio.create_task(udp_listener())
 
 if __name__ == "__main__":
     import uvicorn
