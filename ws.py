@@ -142,12 +142,6 @@ async def get_page():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     clients.append(ws)
-
-    # ← NEW: send the last-known value for each cell
-    for key, cfg in CELLS.items():
-        text = cfg["format"] % cfg["ema"]
-        await ws.send_text(f"{key}:{text}")
-
     try:
         while True:
             await ws.receive_text()  # keep-alive
@@ -179,11 +173,11 @@ async def processor():
 
         if isinstance(msg, pynmea2.types.talker.VHW):
             bsp = float(msg.water_speed_knots)
-            update_ema_and_state("BSP", bsp); broadcast("BSP")
+            update_ema_and_state("BSP (kt)", bsp); broadcast("BSP (kt)")
 
         elif isinstance(msg, pynmea2.types.talker.HDG):
             hdg = float(msg.heading_true)
-            update_ema_and_state("HDG", hdg); broadcast("HDG")
+            update_ema_and_state("HDG (mag)", hdg); broadcast("HDG (mag)")
 
         elif isinstance(msg, pynmea2.types.talker.VTG):
             twa = float(msg.mag_track)
