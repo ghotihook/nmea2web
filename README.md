@@ -7,7 +7,7 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 ##  Features
 
 - **UDP listener** on configurable port, accepts raw NMEA datagrams  
-- **Processor** coroutine with a simple `if isinstance(msg, …)` chain  
+- **Processor** NMEA Processer function
 - **EMA smoothing** per metric with configurable time constant  
 - **WebSocket server** that streams `"KEY:VALUE"` messages to the browser  
 - **HTML+JS client**: auto-reconnect, logs events, updates only selected cells  
@@ -32,12 +32,24 @@ pip install fastapi uvicorn[standard] pynmea2
    python nmea2web.py --udp-port 2002 --web-port 8000 --log-level INFO --ema-smoothing-window 2.0 --display-data BSP TWA HDG
    ```
 
- Open your browser to `http://<host>:<web-port>/`.
+### Command-Line Arguments
+
+| Flag                         | Default                     | Description                                                          |
+|------------------------------|-----------------------------|----------------------------------------------------------------------|
+| `--udp-port <port>`          | `2002`                      | UDP port to listen for NMEA sentences                                |
+| `--web-port <port>`          | `8000`                      | HTTP/WebSocket server port                                           |
+| `--log-level <LEVEL>`        | `ERROR`                     | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)  |
+| `--ema-smoothing-window <s>` | `2.0`                       | EMA time constant in seconds                                         |
+| `--display-data <KEY> [...]` | `BSP TWA HDG`               | Which metrics (CELLS keys) to render                                 |
+
+
+### Normal Browser
+Open your browser to `http://<host>:<web-port>/`.
 
 
 ### Chrome Kiosk Mode - Mac 
 ```open -a "Google Chrome" --args \
-  --kiosk http://localhost:8000 \
+  --kiosk http://<host>:<web-port>/ \
   --incognito \
   --no-first-run \
   --noerrdialogs \
@@ -45,15 +57,11 @@ pip install fastapi uvicorn[standard] pynmea2
 ```
 
 
-## Command-Line Arguments
+### Kiosk
+3rd party apps like Kiosker on ipad work well
 
-| Flag                         | Default                     | Description                                                          |
-|------------------------------|-----------------------------|----------------------------------------------------------------------|
-| `--udp-port <port>`          | `2002`                      | UDP port to listen for NMEA sentences                                |
-| `--web-port <port>`          | `8000`                      | HTTP/WebSocket server port                                           |
-| `--log-level <LEVEL>`        | `ERROR`                     | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
-| `--ema-smoothing-window <s>` | `2.0`                       | EMA time constant in seconds                                         |
-| `--display-data <KEY> [...]` | `BSP TWA HDG`               | Which metrics (CELLS keys) to render                                 |
+
+
 
 
 
