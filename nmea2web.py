@@ -18,6 +18,12 @@ parser.add_argument(
     help="UDP port to listen for NMEA sentences (default: 2002)",
 )
 parser.add_argument(
+    "--web-port",
+    type=int,
+    default=8000,
+    help="HTTP/WebSocket server port (default: 8000)",
+)
+parser.add_argument(
     "--log-level",
     choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     default="ERROR",
@@ -58,7 +64,7 @@ def update_ema_and_state(key: str, raw_value: float):
         cell["ema"] += alpha * (raw_value - cell["ema"])
     cell["last_ts"] = now
 
-# ── 3) Shared queue & WebSocket state ───────────────────────────────────────
+# ── 3) Shared queue & WebSocket state ──────────────────────────────────────
 message_queue = asyncio.Queue()
 app = FastAPI()
 clients: list[WebSocket] = []
@@ -70,7 +76,7 @@ def broadcast(key: str):
     for ws in clients.copy():
         asyncio.create_task(ws.send_text(payload))
 
-# ── 4) Build HTML (using SHOW_KEYS to display a subset) ─────────────────────
+# ── 4) Which cells to display ─────────────────────────────────────────────────
 SHOW_KEYS = ["BSP", "TWA", "HDG"]
 
 PAGE_BG     = "rgb(20,32,48)"
@@ -95,10 +101,8 @@ html = f"""<!DOCTYPE html>
   <title>Live EMA Dashboard</title>
   <style>
     * {{ box-sizing: border-box; }}
-    html,body {{
-      margin:0; width:100vw; height:100vh; overflow:hidden;
-      background:{PAGE_BG}; font-family:system-ui,sans-serif;
-    }}
+    html,body {{ margin:0; width:100vw; height:100vh; overflow:hidden;
+      background:{PAGE_BG}; font-family:system-ui,sans-serif; }}
     .grid {{
       display:grid; width:100%; height:100%;
       grid-template-rows:repeat({len(SHOW_KEYS)},minmax(0,1fr));
@@ -113,8 +117,8 @@ html = f"""<!DOCTYPE html>
     .top-line {{ font-size:2.5vw; text-align:center; margin:4px 0; line-height:1; }}
     .middle-line {{
       font-size:15vh; max-height:100%; text-align:center; line-height:1;
-      font-variant-numeric:tabular-nums; font-feature-settings:'tnum'; font-weight:bold;
-      white-space: pre;  /* preserve leading spaces */
+      font-variant-numeric:tabular-nums; font-feature-settings:'tnum';
+      font-weight:bold; white-space:pre;
     }}
   </style>
 </head>
@@ -124,13 +128,13 @@ html = f"""<!DOCTYPE html>
   (function(){{
     const cellMap = {{}};
     document.querySelectorAll('.cell').forEach(el=>{{ cellMap[el.dataset.key]=el; }});
-    function connect() {{
+    function connect(){{
       const ws = new WebSocket("ws://"+location.host+"/ws");
       ws.onopen    = () => console.log("▶ WS open");
       ws.onmessage = e => {{
         const [k,txt] = e.data.split(':');
         const c = cellMap[k];
-        if (c) c.querySelector('.middle-line').textContent = txt;
+        if(c) c.querySelector('.middle-line').textContent = txt;
       }};
       ws.onclose   = () => setTimeout(connect,1000);
       ws.onerror   = () => ws.close();
@@ -150,7 +154,6 @@ async def get_page():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     clients.append(ws)
-    # send last-known for displayed keys
     for key in SHOW_KEYS:
         cfg = CELLS[key]
         await ws.send_text(f"{key}:{cfg['format']%cfg['ema']}")
@@ -160,7 +163,7 @@ async def ws_endpoint(ws: WebSocket):
     except WebSocketDisconnect:
         clients.remove(ws)
 
-# ── 6) UDP listener enqueues raw messages ───────────────────────────────────
+# ── 6) UDP listener → enqueue messages ──────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
     class Proto(asyncio.DatagramProtocol):
@@ -173,7 +176,7 @@ async def udp_listener():
             message_queue.put_nowait(msg)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
     sock.bind(("0.0.0.0", args.udp_port))
     await loop.create_datagram_endpoint(lambda: Proto(), sock=sock)
 
@@ -190,9 +193,7 @@ async def processor():
         elif isinstance(msg, pynmea2.types.talker.HDG):
             hdg = float(msg.heading)
             update_ema_and_state("HDG", hdg); broadcast("HDG")
-        # …handle other sentences as needed…
 
-# ── 8) Startup ─────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(udp_listener())
@@ -200,4 +201,4 @@ async def startup():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=args.web_port)
