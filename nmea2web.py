@@ -17,13 +17,15 @@ EMA_WINDOW = 1.0  # seconds time-constant for EMA
 CELLS = {
     "BSP": {"top":"BSP (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
     "TWA": {"top":"TWA",      "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "TWS": {"top":"TWS (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "AWA": {"top":"AWA",      "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "AWS": {"top":"AWS (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
     "HDG": {"top":"HDG (mag)","format":"%0.0f°","ema":0.0, "last_ts":None},
-    "SOG": {"top":"SOG (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "COG": {"top":"COG",      "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "TWD": {"top":"TWD",      "format":"%0.0f°","ema":0.0, "last_ts":None},
+
+
+    #"TWS": {"top":"TWS (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
+    #"AWA": {"top":"AWA",      "format":"%0.0f°","ema":0.0, "last_ts":None},
+    #"AWS": {"top":"AWS (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
+    #"SOG": {"top":"SOG (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
+    #"COG": {"top":"COG",      "format":"%0.0f°","ema":0.0, "last_ts":None},
+    #"TWD": {"top":"TWD",      "format":"%0.0f°","ema":0.0, "last_ts":None},
 }
 
 
