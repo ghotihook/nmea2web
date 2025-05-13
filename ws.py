@@ -68,7 +68,7 @@ html = f"""<!DOCTYPE html>
       line-height: 1;
     }}
     .middle-line {{
-      font-size: 15vh;       /* as large as practical */
+      font-size: 20vh;       /* as large as practical */
       max-height: 100%;
       text-align: center;
       line-height: 1;
