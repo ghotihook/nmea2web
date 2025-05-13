@@ -14,18 +14,21 @@ logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(levelname)s: %(me
 # ── 1) Cell definitions & EMA state ─────────────────────────────────────────
 EMA_WINDOW = 1.0  # seconds time-constant for EMA
 
+# master list of every metric you collect
 CELLS = {
-    "BSP": {"top":"BSP (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "TWA": {"top":"TWA",      "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "HDG": {"top":"HDG (mag)","format":"%0.0f°","ema":0.0, "last_ts":None},
-    "TWS": {"top":"TWS (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "AWA": {"top":"AWA",      "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "AWS": {"top":"AWS (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "SOG": {"top":"SOG (kt)", "format":"%0.1f", "ema":0.0, "last_ts":None},
-    "COG": {"top":"COG",      "format":"%0.0f°","ema":0.0, "last_ts":None},
-    "TWD": {"top":"TWD",      "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "BSP": {"top":"BSP (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
+    "TWA": {"top":"TWA",         "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "HDG": {"top":"HDG (mag)",   "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "TWS": {"top":"TWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
+    "AWA": {"top":"AWA",         "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "AWS": {"top":"AWS (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
+    "SOG": {"top":"SOG (kt)",    "format":"%0.1f", "ema":0.0, "last_ts":None},
+    "COG": {"top":"COG",         "format":"%0.0f°","ema":0.0, "last_ts":None},
+    "TWD": {"top":"TWD",         "format":"%0.0f°","ema":0.0, "last_ts":None},
 }
 
+# subset you actually want to show on the page
+SHOW_KEYS = ["BSP","TWA","HDG"]
 
 def update_ema_and_state(key: str, raw_value: float):
     """EMA update in-place on CELLS[key]."""
@@ -53,14 +56,15 @@ def broadcast(key: str):
     for ws in clients.copy():
         asyncio.create_task(ws.send_text(payload))
 
-# ── 3) Build HTML page ──────────────────────────────────────────────────────
+# ── 3) Build HTML page (only SHOW_KEYS) ─────────────────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12
 CELL_RADIUS = 8
 
 cells_html = ""
-for key, cfg in CELLS.items():
+for key in SHOW_KEYS:
+    cfg = CELLS[key]
     ph = cfg["format"] % 0
     cells_html += f'''
     <div class="cell" data-key="{key}">
@@ -71,7 +75,8 @@ for key, cfg in CELLS.items():
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Live EMA Dashboard</title>
   <style>
     * {{ box-sizing: border-box; }}
@@ -81,7 +86,7 @@ html = f"""<!DOCTYPE html>
     }}
     .grid {{
       display:grid; width:100%; height:100%;
-      grid-template-rows:repeat({len(CELLS)},minmax(0,1fr));
+      grid-template-rows:repeat({len(SHOW_KEYS)},minmax(0,1fr));
       gap:{CELL_GAP}px; padding:{CELL_GAP}px;
     }}
     .cell {{
@@ -114,14 +119,8 @@ html = f"""<!DOCTYPE html>
         const c = cellMap[k];
         if(c) c.querySelector('.middle-line').textContent = txt;
       }};
-      ws.onclose   = () => {{
-        console.log("✖ WS close, retry in 1s");
-        setTimeout(connect,1000);
-      }};
-      ws.onerror   = err => {{
-        console.warn("⚠ WS err", err);
-        ws.close();
-      }};
+      ws.onclose   = () => setTimeout(connect,1000);
+      ws.onerror   = () => ws.close();
     }}
     connect();
   }})();
@@ -139,9 +138,10 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     clients.append(ws)
 
-    # send last known values on connect
-    for key, cfg in CELLS.items():
-        txt = cfg["format"] % cfg["ema"]
+    # send last known values only for SHOW_KEYS
+    for key in SHOW_KEYS:
+        cell = CELLS[key]
+        txt = cell["format"] % cell["ema"]
         await ws.send_text(f"{key}:{txt}")
 
     try:
@@ -182,7 +182,7 @@ async def processor():
             if msg.reference == "R":
                 update_ema_and_state("AWA", angle_180); broadcast("AWA")
                 update_ema_and_state("AWS", float(msg.wind_speed)); broadcast("AWS")
-            else:  # reference == "T"
+            else:
                 update_ema_and_state("TWA", angle_180); broadcast("TWA")
                 update_ema_and_state("TWS", float(msg.wind_speed)); broadcast("TWS")
 
@@ -196,7 +196,6 @@ async def processor():
 
         elif isinstance(msg, pynmea2.types.talker.MWD):
             update_ema_and_state("TWD", float(msg.direction_magnetic)); broadcast("TWD")
-
 
 @app.on_event("startup")
 async def startup():
