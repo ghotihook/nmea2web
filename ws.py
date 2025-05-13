@@ -54,7 +54,7 @@ for row in LAYOUT:
           <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
-html = f"""
+html = """
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"/><title>Live Grid</title>
