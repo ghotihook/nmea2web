@@ -12,8 +12,10 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
 )
 
-# ── Layout (4-column grid) ─────────────────────────────────────────────────
-# Each tuple is (cellKey, spanUnits) where spanUnits ∈ {1,2,4}
+# ── New Layout (4-column grid) ─────────────────────────────────────────────
+# Row 1: a=1/2, b=1/2
+# Row 2: c=full-width
+# Row 3: d/e/f/g = four quarter-widths
 LAYOUT = [
     [("a", 2), ("b", 2)],
     [("c", 4)],
@@ -24,7 +26,7 @@ LAYOUT = [
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
     "b": ("VHW", "heading_true"),
-    # extend as needed...
+    # add others as needed...
 }
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
@@ -34,7 +36,11 @@ for key, (stype, attr) in CELL_NMEA_CONFIG.items():
 CELL_DISPLAY = {
     "a": {"top": "Water Speed",   "unit": "kn", "bottom": ""},
     "b": {"top": "True Heading",  "unit": "°T", "bottom": ""},
-    # fill in for c–j...
+    "c": {"top": "Cell C",        "unit": "",   "bottom": ""},
+    "d": {"top": "Cell D",        "unit": "",   "bottom": ""},
+    "e": {"top": "Cell E",        "unit": "",   "bottom": ""},
+    "f": {"top": "Cell F",        "unit": "",   "bottom": ""},
+    "g": {"top": "Cell G",        "unit": "",   "bottom": ""},
 }
 
 # ── Appearance ─────────────────────────────────────────────────────────────
@@ -43,7 +49,7 @@ CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12   # px
 CELL_RADIUS = 8    # px
 
-# ── Build HTML ──────────────────────────────────────────────────────────────
+# ── Build the HTML with 4 lines per cell ───────────────────────────────────
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
@@ -66,7 +72,6 @@ html = f"""
     html, body {{
       margin: 0; padding: {CELL_GAP}px; height: 100%; 
       background: {PAGE_BG}; box-sizing: border-box;
-      /* System UI font stack */
       font-family: system-ui, -apple-system, BlinkMacSystemFont,
                    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
@@ -87,13 +92,12 @@ html = f"""
       user-select: none;
     }}
     .top-line, .unit-line, .bottom-line {{
-      font-size: 1.2vw;
-      margin: 2px 0;
+      font-size: 2vw;      /* bumped up */
+      margin: 3px 0;
     }}
     .value-line {{
-      font-size: 3vw;
-      margin: 2px 0;
-      /* ensure digits line up */
+      font-size: 5vw;      /* much larger */
+      margin: 3px 0;
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum';
       font-weight: bold;
@@ -145,7 +149,7 @@ async def ws_endpoint(ws: WebSocket):
     except WebSocketDisconnect:
         clients.remove(ws)
 
-# ── UDP → WebSocket Bridge ─────────────────────────────────────────────────
+# ── UDP → WebSocket Bridge (port 2002) ──────────────────────────────────────
 async def udp_listener():
     loop = asyncio.get_running_loop()
 
@@ -167,7 +171,6 @@ async def udp_listener():
                         for ws in clients.copy():
                             asyncio.create_task(ws.send_text(f"{cell_key}:{val}"))
 
-    # bind UDP to port 2002
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", 2002))
