@@ -48,12 +48,8 @@ Open your browser to `http://<host>:<web-port>/`.
 
 
 ### Chrome Kiosk Mode - Mac 
-```open -a "Google Chrome" --args \
-  --kiosk http://<host>:<web-port>/ \
-  --incognito \
-  --no-first-run \
-  --noerrdialogs \
-  --disable-infobars
+```
+  open -a "Google Chrome" --args --kiosk http://<host>:<web-port>/ --incognito --no-first-run --noerrdialogs --disable-infobars
 ```
 
 
