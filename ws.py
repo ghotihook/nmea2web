@@ -22,30 +22,20 @@ LAYOUT = [
 ]
 
 # ── NMEA → Cell mapping ─────────────────────────────────────────────────────
-# cellKey → (sentence_type, attribute_name)
 CELL_NMEA_CONFIG = {
     "a": ("VHW", "water_speed_knots"),
     "b": ("VHW", "heading_true"),
-    # add more as needed...
+    # extend as needed...
 }
-# invert for quick lookup by sentence_type
 NMEA_TO_CELLS = {}
 for key, (stype, attr) in CELL_NMEA_CONFIG.items():
     NMEA_TO_CELLS.setdefault(stype, []).append((key, attr))
 
-# ── Cell display text: top_line, unit, bottom_line ─────────────────────────
-# Fill in your labels/units as desired
+# ── Cell static labels/units/bottom text ────────────────────────────────────
 CELL_DISPLAY = {
-    "a": {"top": "Water Speed", "unit": "kn", "bottom": ""},
-    "b": {"top": "True Heading", "unit": "°T", "bottom": ""},
-    "c": {"top": "…", "unit": "", "bottom": ""},
-    "d": {"top": "…", "unit": "", "bottom": ""},
-    "e": {"top": "…", "unit": "", "bottom": ""},
-    "f": {"top": "…", "unit": "", "bottom": ""},
-    "g": {"top": "…", "unit": "", "bottom": ""},
-    "h": {"top": "…", "unit": "", "bottom": ""},
-    "i": {"top": "…", "unit": "", "bottom": ""},
-    "j": {"top": "…", "unit": "", "bottom": ""},
+    "a": {"top": "Water Speed",   "unit": "kn", "bottom": ""},
+    "b": {"top": "True Heading",  "unit": "°T", "bottom": ""},
+    # fill in for c–j...
 }
 
 # ── Appearance ─────────────────────────────────────────────────────────────
@@ -54,20 +44,17 @@ CELL_BG     = "rgb(46,50,69)"
 CELL_GAP    = 12   # px
 CELL_RADIUS = 8    # px
 
-# ── Build the HTML with 4 lines per cell ───────────────────────────────────
+# ── Build HTML ──────────────────────────────────────────────────────────────
 cells_html = ""
 for row in LAYOUT:
     for key, span in row:
         ui = CELL_DISPLAY.get(key, {"top": key, "unit": "", "bottom": ""})
-        top    = ui["top"]
-        unit   = ui["unit"]
-        bottom = ui["bottom"]
         cells_html += f'''
         <div class="cell span-{span}" data-key="{key}">
-          <div class="top-line">{top}</div>
+          <div class="top-line">{ui["top"]}</div>
           <div class="value-line">–</div>
-          <div class="unit-line">{unit}</div>
-          <div class="bottom-line">{bottom}</div>
+          <div class="unit-line">{ui["unit"]}</div>
+          <div class="bottom-line">{ui["bottom"]}</div>
         </div>'''
 
 html = f"""
@@ -80,6 +67,9 @@ html = f"""
     html, body {{
       margin: 0; padding: {CELL_GAP}px; height: 100%; 
       background: {PAGE_BG}; box-sizing: border-box;
+      /* System UI font stack */
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                   'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }}
     .grid {{
       display: grid;
@@ -104,6 +94,10 @@ html = f"""
     .value-line {{
       font-size: 3vw;
       margin: 2px 0;
+      /* ensure digits line up */
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum';
+      font-weight: bold;
     }}
     .span-1 {{ grid-column: span 1; }}
     .span-2 {{ grid-column: span 2; }}
@@ -115,17 +109,14 @@ html = f"""
     {cells_html}
   </div>
   <script>
-    // Map cellKey → <div class="cell">
     const cellMap = Object.fromEntries(
       Array.from(document.querySelectorAll('.cell'))
            .map(el => [el.dataset.key, el])
     );
-
     const ws = new WebSocket(`ws://${{location.host}}/ws`);
     ws.onopen  = () => console.log("▶ WS connected");
     ws.onclose = () => console.log("✖ WS disconnected");
     ws.onmessage = e => {{
-      // expecting "key:value"
       const [key, val] = e.data.split(":");
       const cell = cellMap[key];
       if (cell) {{
@@ -151,7 +142,6 @@ async def ws_endpoint(ws: WebSocket):
     clients.append(ws)
     try:
         while True:
-            # ignore client pings
             await ws.receive_text()
     except WebSocketDisconnect:
         clients.remove(ws)
@@ -165,33 +155,29 @@ async def udp_listener():
             raw = data.decode().strip()
             logging.info(f"⚡️ UDP recv {raw!r} from {addr}")
 
-            # parse NMEA
             try:
                 msg = pynmea2.parse(raw)
             except pynmea2.ParseError:
-                logging.warning(f"Bad NMEA: {raw!r}")
                 return
 
-            stype = msg.sentence_type  # e.g. "VHW"
+            stype = msg.sentence_type
             if stype in NMEA_TO_CELLS:
                 for cell_key, attr in NMEA_TO_CELLS[stype]:
                     val = getattr(msg, attr, None)
                     if val is not None:
-                        # broadcast "key:value"
                         for ws in clients.copy():
                             asyncio.create_task(ws.send_text(f"{cell_key}:{val}"))
 
-    # manual IPv4 socket with SO_REUSEADDR
+    # bind UDP to port 2002
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", 9999))
+    sock.bind(("0.0.0.0", 2002))
     await loop.create_datagram_endpoint(lambda: UDPProtocol(), sock=sock)
 
 @app.on_event("startup")
 async def on_startup():
     asyncio.create_task(udp_listener())
 
-# ── Entrypoint ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
