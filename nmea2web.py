@@ -84,12 +84,28 @@ message_queue = asyncio.Queue()
 app = FastAPI()
 clients: list[WebSocket] = []
 
+
+async def _send_safe(ws: WebSocket, payload: str):
+    try:
+        await ws.send_text(payload)
+    except WebSocketDisconnect:
+        # client disconnected cleanly
+        if ws in clients:
+            clients.remove(ws)
+    except Exception:
+        # any other network error
+        if ws in clients:
+            clients.remove(ws)
+
+            
+
 def broadcast(key: str):
     cell = CELLS[key]
     text = cell["format"] % cell["ema"]
     payload = f"{key}:{text}"
     for ws in clients.copy():
-        asyncio.create_task(ws.send_text(payload))
+        # schedule our safe sender instead of raw ws.send_text
+        asyncio.create_task(_send_safe(ws, payload))
 
 # ── 5) Build HTML (with dynamic sizing & centering) ─────────────────────────
 PAGE_BG     = "rgb(20,32,48)"
