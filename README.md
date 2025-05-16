@@ -6,7 +6,7 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 
 ##  Features
 
-- **UDP listener** on configurable port, accepts raw NMEA datagrams  
+- **UDP listener** on configurable port, accepts raw NMEA0183 on UDP  
 - **Processor** NMEA Processer function
 - **EMA smoothing** per metric with configurable time constant  
 - **WebSocket server** that streams `"KEY:VALUE"` messages to the browser  
@@ -29,7 +29,7 @@ pip install fastapi uvicorn[standard] pynmea2
 ##  Usage
 
    ```bash
-   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level INFO --ema-smoothing-window 2.0 --display-data BSP TWA HDG
+   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level DEBUG --ema-smoothing-window 2 --display-data BSP TWA TWS
    ```
 
 ### Command-Line Arguments
@@ -59,26 +59,6 @@ Open your browser to `http://<host>:<web-port>/`.
 
 
 
-
-
-## Configuration
-
-All the configuration lives at the top of `nmea2web.py` and via the CLI flags:
-
-- **CELLS** dict defines every metric collected:
-  ```python
-  CELLS = {
-    "BSP": { "top":"BSP (kt)", "format":"%2.1f", … },
-    "TWA": { "top":"TWA", "format":" %3.0f°", … },
-    "HDG": { "top":"HDG (mag)", "format":" %3.0f°", … },
-    # etc.
-  }
-  ```
-- **SHOW_KEYS** is set from `--display-data` to choose which cells appear.
-- **EMA_WINDOW** is set from `--ema-smoothing-window`.
-
-
-
 ## How it Works
 
 1. **UDP Listener**  
@@ -100,19 +80,4 @@ All the configuration lives at the top of `nmea2web.py` and via the CLI flags:
    - Builds a CSS grid for each key in `SHOW_KEYS`  
    - Auto-reconnects, logs events, and updates DOM on each message  
    - Dynamically sizes fonts to ~15%/65% of cell height for label/value
-
-
-
-## Troubleshooting
-
-- **Invalid `--display-data` key**  
-  The server will exit with an error listing valid CELLS keys.
-
-- **No updates in browser?**  
-  - Check logs by raising `--log-level` to `INFO` or `DEBUG`  
-  - Open browser console for WebSocket logs
-
-- **Appearance tweaks**  
-  - Modify CSS sizing factors in the HTML template  
-  - Change colors or opacity via the CSS rules in `nmea2web.py`
 
