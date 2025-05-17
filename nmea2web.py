@@ -121,6 +121,9 @@ PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
 FONT_COLOR  = "#0f0"      # ← new!
 
+CELL_GAP    = 12
+CELL_RADIUS = 8
+
 cells_html = ""
 for key in SHOW_KEYS:
     cfg = CELLS[key]
