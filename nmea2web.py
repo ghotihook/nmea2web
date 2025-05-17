@@ -85,6 +85,8 @@ app = FastAPI()
 clients: list[WebSocket] = []
 
 
+last_sent: dict[str, str] = {} 
+
 async def _send_safe(ws: WebSocket, payload: str):
     try:
         await ws.send_text(payload)
@@ -102,9 +104,14 @@ async def _send_safe(ws: WebSocket, payload: str):
 def broadcast(key: str):
     cell = CELLS[key]
     text = cell["format"] % cell["ema"]
+
+    # only send if changed
+    if last_sent.get(key) == text:
+        return
+
+    last_sent[key] = text
     payload = f"{key}:{text}"
     for ws in clients.copy():
-        # schedule our safe sender instead of raw ws.send_text
         asyncio.create_task(_send_safe(ws, payload))
 
 # ── 5) Build HTML (with dynamic sizing & centering) ─────────────────────────
