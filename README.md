@@ -13,7 +13,7 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 - **HTML+JS client**: auto-reconnect, logs events, updates only selected cells  
 - **Command-line args** to control ports, log level, smoothing window, and displayed metrics
 
-
+![Example](images/example.jpg)
 
 ## Requirements / Dependencies
 
