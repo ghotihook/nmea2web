@@ -35,7 +35,28 @@ parser.add_argument(
     default=["BSP", "TWA", "HDG"],
     help="Which CELLS keys to display (default: BSP TWA HDG)",
 )
+
+
+parser.add_argument(
+    "--page-color",
+    type=str,
+    default="#171F2F",     # rgb(23,32,47)
+    help="Page background color (hex, e.g. #171F2F or #ffffff)",
+)
+parser.add_argument(
+    "--cell-color",
+    type=str,
+    default="#2A2D3C",     # rgb(42,45,60)
+    help="Cell background color (hex, e.g. #2A2D3C or #ffffff)",
+)
+parser.add_argument(
+    "--text-color",
+    type=str,
+    default="#75FB4C",     # rgb(117,251,76)
+    help="Text color (hex, e.g. #75FB4C or #ffffff)",
+)
 args = parser.parse_args()
+
 
 # ── 1) Define and validate cell keys ─────────────────────────────────────────
 CELLS = {
@@ -119,9 +140,9 @@ def broadcast(key: str):
 #CELL_BG     = "#ffffff"
 #FONT_COLOR  = "#000000"      # ← new!
 
-PAGE_BG     = "rgb(20,32,48)"
-CELL_BG     = "rgb(46,50,69)"
-FONT_COLOR  = "#0f0"      # ← new!
+PAGE_BG     = args.page_color
+CELL_BG     = args.cell_color
+FONT_COLOR  = args.text_color
 
 CELL_GAP    = 12
 CELL_RADIUS = 8
