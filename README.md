@@ -15,7 +15,8 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 - **Flexible Layout**: Single-column grid scales automatically to any display size—perfect for tablets, monitors, or dedicated helm screens.  
 - **Lightweight & Self-Hosted**: No external dependencies or cloud services—run everything locally on your own network.  
 
-![Example](images/example.jpeg)
+![iPad](images/ipad.jpeg)
+![Kindle](images/kindle.jpeg)
 
 ## Requirements / Dependencies
 
