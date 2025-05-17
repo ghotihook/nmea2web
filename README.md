@@ -7,13 +7,12 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 ##  Features
 
 
-- **Instant Live Readings**: Watch real-time vessel metrics (speed, heading, wind, etc.) update smoothly on screen.  
+- **Instant Live Readings**: Realtime NMEA0183 data 
 - **Customizable Dashboard**: Choose exactly which data points to display via simple command-line flags—no code changes needed.  
-- **Clutter-Free View**: Large, easy-to-read numbers optimized for big screens and kiosks.  
-- **Auto-Reconnect**: The dashboard seamlessly restores connection if your network or device hiccups.  
-- **Adjustable Smoothing**: Fine-tune how “jumpy” or “steady” your live values appear with a configurable EMA time constant.  
-- **Flexible Layout**: Single-column grid scales automatically to any display size—perfect for tablets, monitors, or dedicated helm screens.  
-- **Lightweight & Self-Hosted**: No external dependencies or cloud services—run everything locally on your own network.  
+- **Clutter-Free View**: Large, easy-to-read numbers optimized for ipad/android/kindle/ereaders, only upates on change
+- **Auto-Reconnect**: Page re-connects on interruption
+- **Adjustable Smoothing**: Allows configuration of exonential moving average for smooth display
+- **Lightweight & Self-Hosted**: A simply python script to post and a web-brower to display
 
 ![iPad](images/ipad.jpeg)
 ![Kindle](images/kindle.jpeg)
@@ -36,13 +35,13 @@ pip install fastapi uvicorn[standard] pynmea2
 ##  Usage
 
    ```bash
-   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level DEBUG --ema-smoothing-window 2 --display-data BSP TWA TWS
+   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level ERROR --ema-smoothing-window 2 --display-data BSP TWA TWS
    ```
 
    There is also an option to specifiy colours for example e-readers will do much better with
 
    ```bash
-   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level DEBUG --ema-smoothing-window 2 --display-data BSP TWA TWS --page-color "#FFFFFF" --cell-color "#FFFFFF" --text-color "#000000"
+   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level ERROR --ema-smoothing-window 2 --display-data BSP TWA TWS --page-color "#FFFFFF" --cell-color "#FFFFFF" --text-color "#000000"
    ```
 
 
