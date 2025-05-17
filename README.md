@@ -18,6 +18,10 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 ![iPad](images/ipad.jpeg)
 ![Kindle](images/kindle.jpeg)
 
+Supports
+- BSP, TWA, TWS TWD, SOG, COG, AWA, AWS
+
+
 ## Requirements / Dependencies
 
 - Python 3.8+  
