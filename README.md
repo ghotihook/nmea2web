@@ -52,9 +52,10 @@ Open your browser to `http://<host>:<web-port>/`.
   open -a "Google Chrome" --args --kiosk http://<host>:<web-port>/ --incognito --no-first-run --noerrdialogs --disable-infobars
 ```
 
-### iPad/Android
+### iPad/Android/Kindle - Anything with a webbrower
 - Guided Access Mode (Built into iPad OS)
 - Kiosker (iPad)
+- Kindle (webbrower)
 
 
 
