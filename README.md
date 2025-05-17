@@ -6,12 +6,14 @@ A minimal FastAPI + WebSocket + UDP listener app that parses NMEA sentences, app
 
 ##  Features
 
-- **UDP listener** on configurable port, accepts raw NMEA0183 on UDP  
-- **Processor** NMEA Processer function
-- **EMA smoothing** per metric with configurable time constant  
-- **WebSocket server** that streams `"KEY:VALUE"` messages to the browser  
-- **HTML+JS client**: auto-reconnect, logs events, updates only selected cells  
-- **Command-line args** to control ports, log level, smoothing window, and displayed metrics
+
+- **Instant Live Readings**: Watch real-time vessel metrics (speed, heading, wind, etc.) update smoothly on screen.  
+- **Customizable Dashboard**: Choose exactly which data points to display via simple command-line flags—no code changes needed.  
+- **Clutter-Free View**: Large, easy-to-read numbers optimized for big screens and kiosks.  
+- **Auto-Reconnect**: The dashboard seamlessly restores connection if your network or device hiccups.  
+- **Adjustable Smoothing**: Fine-tune how “jumpy” or “steady” your live values appear with a configurable EMA time constant.  
+- **Flexible Layout**: Single-column grid scales automatically to any display size—perfect for tablets, monitors, or dedicated helm screens.  
+- **Lightweight & Self-Hosted**: No external dependencies or cloud services—run everything locally on your own network.  
 
 ![Example](images/example.jpeg)
 
@@ -32,6 +34,13 @@ pip install fastapi uvicorn[standard] pynmea2
    python nmea2web.py --udp-port 2002 --web-port 8000 --log-level DEBUG --ema-smoothing-window 2 --display-data BSP TWA TWS
    ```
 
+   There is also an option to specifiy colours for example e-readers will do much better with
+
+   ```bash
+   python nmea2web.py --udp-port 2002 --web-port 8000 --log-level DEBUG --ema-smoothing-window 2 --display-data BSP TWA TWS --page-color "#FFFFFF" --cell-color "#FFFFFF" --text-color "#000000"
+   ```
+
+
 ### Command-Line Arguments
 
 | Flag                         | Default                     | Description                                                          |
@@ -41,6 +50,9 @@ pip install fastapi uvicorn[standard] pynmea2
 | `--log-level <LEVEL>`        | `ERROR`                     | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)  |
 | `--ema-smoothing-window <s>` | `2.0`                       | EMA time constant in seconds                                         |
 | `--display-data <KEY> [...]` | `BSP TWA HDG`               | Which metrics (CELLS keys) to render                                 |
+| `--page-color <hex>`         | `#171F2F`                   | Page background color (hex, e.g. `#171F2F` or `#ffffff`)             |
+| `--cell-color <hex>`         | `#2A2D3C`                   | Cell background color (hex, e.g. `#2A2D3C` or `#ffffff`)             |
+| `--text-color <hex>`         | `#75FB4C`                   | Text color (hex, e.g. `#75FB4C` or `#ffffff`)                        |
 
 
 ### Normal Browser
