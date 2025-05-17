@@ -115,10 +115,11 @@ def broadcast(key: str):
         asyncio.create_task(_send_safe(ws, payload))
 
 # ── 5) Build HTML (with dynamic sizing & centering) ─────────────────────────
+#PAGE_BG     = "rgb(20,32,48)"
+#CELL_BG     = "rgb(46,50,69)"
 PAGE_BG     = "rgb(20,32,48)"
 CELL_BG     = "rgb(46,50,69)"
-CELL_GAP    = 12
-CELL_RADIUS = 8
+FONT_COLOR  = "#0f0"      # ← new!
 
 cells_html = ""
 for key in SHOW_KEYS:
@@ -151,7 +152,7 @@ html = f"""<!DOCTYPE html>
       background:{CELL_BG}; border-radius:{CELL_RADIUS}px;
       display:flex; flex-direction:column;
       align-items:center; justify-content:center;
-      padding:6px; color:#0f0; user-select:none;
+      padding:6px; color:{FONT_COLOR}; user-select:none;
     }}
     .top-line {{ flex:0 0 25%; display:flex; align-items:center; justify-content:center; white-space:nowrap;opacity: 0.7; }}
     .middle-line {{ flex:0 0 50%; display:flex; align-items:center; justify-content:center;
